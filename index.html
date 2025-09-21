@@ -15,7 +15,7 @@
   <div id="globe"></div>
   <div class="hud">
     <div><b>Flights Globe</b></div>
-    <div>Hover arcs for details. Data: <code>data.csv</code></div>
+    <div id="stats" style="margin-top:6px; line-height:1.4;"></div>
   </div>
 
   <!-- libs via CDN -->
@@ -69,6 +69,61 @@
       return 0.06 + 0.24 * (d / Math.PI);
     }
 
+    const EARTH_RADIUS_KM = 6371;
+    const AVERAGE_SPEED_KMH = 900; // rough jet cruise speed for estimate
+
+    function computeStats(flights) {
+      const airportCounts = new Map();
+      const routeCounts = new Map(); // directionless src-dest
+
+      let totalKm = 0;
+
+      for (const f of flights) {
+        // airport visit counts
+        airportCounts.set(f.src, (airportCounts.get(f.src) || 0) + 1);
+        airportCounts.set(f.dest, (airportCounts.get(f.dest) || 0) + 1);
+
+        // accumulate distance
+        totalKm += f.distanceKm || 0;
+
+        // route (directionless)
+        const key = [f.src, f.dest].sort().join('-');
+        routeCounts.set(key, (routeCounts.get(key) || 0) + 1);
+      }
+
+      const totalFlights = flights.length;
+      const totalHours = totalKm / AVERAGE_SPEED_KMH;
+
+      const topAirports = Array.from(airportCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([code, count]) => `${code.toUpperCase()} (${count})`);
+
+      let topRoute = null;
+      for (const [key, count] of routeCounts.entries()) {
+        if (!topRoute || count > topRoute.count) {
+          const [a, b] = key.split('-');
+          topRoute = { a: a.toUpperCase(), b: b.toUpperCase(), count };
+        }
+      }
+
+      return { totalFlights, totalHours, topAirports, topRoute };
+    }
+
+    function renderStats(stats) {
+      const elStats = document.getElementById('stats');
+      if (!elStats) return;
+      const hours = stats.totalHours.toFixed(1);
+      const topAirports = stats.topAirports.join(', ');
+      const topRouteStr = stats.topRoute ? `${stats.topRoute.a} ↔ ${stats.topRoute.b} (${stats.topRoute.count})` : '—';
+      elStats.innerHTML = `
+        <div>Total flights: <b>${stats.totalFlights}</b></div>
+        <div>Total hours (est.): <b>${hours}h</b></div>
+        <div>Most flown route: <b>${topRouteStr}</b></div>
+        <div>Top airports: <b>${topAirports}</b></div>
+      `;
+    }
+
     // Load CSV and render
     d3.csv('./data.csv', d => ({
       dateStr: d.date,
@@ -86,7 +141,8 @@
             ...r,
             startLat: a.lat, startLng: a.lng,
             endLat: b.lat, endLng: b.lng,
-            altitude: altitudeFor(a, b)
+            altitude: altitudeFor(a, b),
+            distanceKm: greatCircleDistance(a, b) * EARTH_RADIUS_KM
           };
         });
 
@@ -95,6 +151,9 @@
       world
         .arcsData(flights)
         .pointsData(airports);
+
+      const stats = computeStats(flights);
+      renderStats(stats);
     }).catch(err => {
       console.error('Failed to load CSV:', err);
     });
