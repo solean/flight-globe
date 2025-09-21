@@ -16,6 +16,7 @@
   <div class="hud">
     <div><b>Flights Globe</b></div>
     <div id="stats" style="margin-top:6px; line-height:1.4;"></div>
+    <div id="legend" style="margin-top:6px; line-height:1.4;"></div>
   </div>
 
   <!-- libs via CDN -->
@@ -32,7 +33,6 @@
       // .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
       .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
       .backgroundColor('#000000')
-      .arcColor(() => ['#40e0d0', '#d8b4fe'])
       .arcStroke(0.75)
       .arcAltitude(d => d.altitude)
       .arcDashLength(0.25)
@@ -124,6 +124,19 @@
       `;
     }
 
+    function renderLegend(years, colorScale) {
+      const elLegend = document.getElementById('legend');
+      if (!elLegend) return;
+      const items = years.map(y => {
+        const color = colorScale(y);
+        return `<span style="display:inline-flex;align-items:center;margin-right:8px;margin-bottom:4px;">
+          <span style="display:inline-block;width:10px;height:10px;background:${color};margin-right:6px;border-radius:2px;"></span>
+          <span>${y}</span>
+        </span>`;
+      }).join('');
+      elLegend.innerHTML = `<div>Colors by year: ${items}</div>`;
+    }
+
     // Load CSV and render
     d3.csv('./data.csv', d => ({
       dateStr: d.date,
@@ -142,18 +155,29 @@
             startLat: a.lat, startLng: a.lng,
             endLat: b.lat, endLng: b.lng,
             altitude: altitudeFor(a, b),
+            year: r.date ? r.date.getFullYear() : null,
             distanceKm: greatCircleDistance(a, b) * EARTH_RADIUS_KM
           };
         });
 
       const airports = Object.entries(window.AIRPORTS).map(([code, a]) => ({ code, ...a }));
 
+      // Build year color scale and apply to arcs
+      const years = Array.from(new Set(flights.map(f => f.year).filter(Boolean))).sort();
+      const palette = d3.schemeTableau10 || d3.schemeCategory10;
+      const range = (palette && palette.length >= years.length)
+        ? palette.slice(0, years.length)
+        : years.map((_, i) => d3.interpolateTurbo(i / Math.max(1, years.length - 1)));
+      const yearColor = d3.scaleOrdinal().domain(years).range(range);
+
       world
+        .arcColor(d => yearColor(d.year))
         .arcsData(flights)
         .pointsData(airports);
 
       const stats = computeStats(flights);
       renderStats(stats);
+      renderLegend(years, yearColor);
     }).catch(err => {
       console.error('Failed to load CSV:', err);
     });
