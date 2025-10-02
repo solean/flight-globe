@@ -22,7 +22,6 @@
   <!-- libs via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
   <script src="https://unpkg.com/globe.gl"></script>
-  <script src="./airports.js"></script>
 
   <script>
     const el = document.getElementById('globe');
@@ -47,9 +46,6 @@
 
     // world.controls().autoRotate = true;
     // world.controls().autoRotateSpeed = 0.45;
-
-    const focus = AIRPORTS.phx;
-    world.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.8 }, 0);
 
     function greatCircleDistance(a, b) {
       const toRad = Math.PI / 180;
@@ -137,32 +133,71 @@
       elLegend.innerHTML = `<div>Colors by year: ${items}</div>`;
     }
 
-    // Load CSV and render
-    d3.csv('./data.csv', d => ({
-      dateStr: d.date,
-      date: d.date ? new Date(d.date) : null,
-      src: d.src ? d.src.trim().toLowerCase() : null,
-      dest: d.dest ? d.dest.trim().toLowerCase() : null,
-      flightno: d.flightno ? d.flightno.trim() : null
-    })).then(rows => {
-      const flights = rows
-        .filter(r => r.src && r.dest && window.AIRPORTS[r.src] && window.AIRPORTS[r.dest])
-        .map(r => {
-          const a = window.AIRPORTS[r.src];
-          const b = window.AIRPORTS[r.dest];
+    async function loadData() {
+      const [airportsRes, flightsRes] = await Promise.all([
+        fetch('/api/airports'),
+        fetch('/api/flights')
+      ]);
+
+      if (!airportsRes.ok) {
+        throw new Error(`Failed to load airports: ${airportsRes.status}`);
+      }
+      if (!flightsRes.ok) {
+        throw new Error(`Failed to load flights: ${flightsRes.status}`);
+      }
+
+      const airportsData = await airportsRes.json();
+      const flightsData = await flightsRes.json();
+      return { airportsData, flightsData };
+    }
+
+    function prepareData({ airportsData, flightsData }) {
+      const airports = airportsData.map(a => ({
+        code: a.code,
+        name: a.name,
+        lat: Number(a.lat),
+        lng: Number(a.lng)
+      }));
+
+      const airportMap = new Map(airports.map(a => [a.code, a]));
+
+      const flights = flightsData
+        .map(row => {
+          const src = airportMap.get(row.src);
+          const dest = airportMap.get(row.dest);
+          if (!src || !dest) {
+            return null;
+          }
+
+          const dateObj = row.date ? new Date(row.date) : null;
           return {
-            ...r,
-            startLat: a.lat, startLng: a.lng,
-            endLat: b.lat, endLng: b.lng,
-            altitude: altitudeFor(a, b),
-            year: r.date ? r.date.getFullYear() : null,
-            distanceKm: greatCircleDistance(a, b) * EARTH_RADIUS_KM
+            dateStr: row.date || '',
+            date: dateObj,
+            src: row.src,
+            dest: row.dest,
+            flightno: row.flightno,
+            startLat: src.lat,
+            startLng: src.lng,
+            endLat: dest.lat,
+            endLng: dest.lng,
+            altitude: altitudeFor(src, dest),
+            year: dateObj ? dateObj.getFullYear() : null,
+            distanceKm: greatCircleDistance(src, dest) * EARTH_RADIUS_KM
           };
-        });
+        })
+        .filter(Boolean);
 
-      const airports = Object.entries(window.AIRPORTS).map(([code, a]) => ({ code, ...a }));
+      return { airports, airportMap, flights };
+    }
 
-      // Build year color scale and apply to arcs
+    loadData().then(data => {
+      const { airports, airportMap, flights } = prepareData(data);
+
+      const focus = airportMap.get('phx');
+      if (focus) {
+        world.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.8 }, 0);
+      }
+
       const years = Array.from(new Set(flights.map(f => f.year).filter(Boolean))).sort();
       const palette = d3.schemeTableau10 || d3.schemeCategory10;
       const range = (palette && palette.length >= years.length)
@@ -171,7 +206,7 @@
       const yearColor = d3.scaleOrdinal().domain(years).range(range);
 
       world
-        .arcColor(d => yearColor(d.year))
+        .arcColor(d => (d.year ? yearColor(d.year) : '#999'))
         .arcsData(flights)
         .pointsData(airports);
 
@@ -179,7 +214,11 @@
       renderStats(stats);
       renderLegend(years, yearColor);
     }).catch(err => {
-      console.error('Failed to load CSV:', err);
+      console.error('Failed to load data:', err);
+      const elStats = document.getElementById('stats');
+      if (elStats) {
+        elStats.textContent = 'Unable to load flight data.';
+      }
     });
   </script>
 </body>
