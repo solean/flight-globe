@@ -1,6 +1,6 @@
 # Flights Globe (Next.js)
 
-This is a Next.js port of the flights globe demo. Airports and flights are stored in a SQLite database and served via API routes so the app can be deployed (e.g. to Vercel) without hardcoding data in the client bundle.
+This is a web project that displays my flight data on a globe. Airports and flights are stored in a SQLite database and served via API routes so the app can be deployed (e.g. to Vercel) without hardcoding data in the client bundle.
 
 ## Getting started
 
