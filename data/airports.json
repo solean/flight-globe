@@ -1,0 +1,147 @@
+{
+  "buf": {
+    "lat": 42.9405,
+    "lng": -78.7322,
+    "name": "Buffalo Niagara (BUF)"
+  },
+  "dfw": {
+    "lat": 32.8998,
+    "lng": -97.0403,
+    "name": "Dallas–Fort Worth (DFW)"
+  },
+  "hnd": {
+    "lat": 35.5494,
+    "lng": 139.7798,
+    "name": "Tokyo Haneda (HND)"
+  },
+  "oka": {
+    "lat": 26.1958,
+    "lng": 127.6464,
+    "name": "Naha (OKA)"
+  },
+  "itm": {
+    "lat": 34.7855,
+    "lng": 135.4382,
+    "name": "Osaka Itami (ITM)"
+  },
+  "phx": {
+    "lat": 33.4343,
+    "lng": -112.0116,
+    "name": "Phoenix Sky Harbor (PHX)"
+  },
+  "ord": {
+    "lat": 41.9742,
+    "lng": -87.9073,
+    "name": "Chicago O'Hare (ORD)"
+  },
+  "las": {
+    "lat": 36.083,
+    "lng": -115.1537,
+    "name": "Las Vegas Harry Reid (LAS)"
+  },
+  "atl": {
+    "lat": 33.6407,
+    "lng": -84.4277,
+    "name": "Atlanta Hartsfield–Jackson (ATL)"
+  },
+  "dtw": {
+    "lat": 42.2124,
+    "lng": -83.3534,
+    "name": "Detroit Metro (DTW)"
+  },
+  "jfk": {
+    "lat": 40.6413,
+    "lng": -73.7781,
+    "name": "New York City (JFK)"
+  },
+  "slc": {
+    "lat": 40.7899,
+    "lng": -111.9791,
+    "name": "Salt Lake City (SLC)"
+  },
+  "icn": {
+    "lat": 37.4602,
+    "lng": 126.4407,
+    "name": "Incheon (ICN)"
+  },
+  "gmp": {
+    "lat": 37.5583,
+    "lng": 126.7906,
+    "name": "Seoul Gimpo (GMP)"
+  },
+  "cju": {
+    "lat": 33.5113,
+    "lng": 126.493,
+    "name": "Jeju (CJU)"
+  },
+  "doh": {
+    "lat": 25.2731,
+    "lng": 51.6081,
+    "name": "Doha Hamad International (DOH)"
+  },
+  "hkt": {
+    "lat": 8.1132,
+    "lng": 98.3165,
+    "name": "Phuket (HKT)"
+  },
+  "dxb": {
+    "lat": 25.2532,
+    "lng": 55.3657,
+    "name": "Dubai International (DXB)"
+  },
+  "ist": {
+    "lat": 41.2753,
+    "lng": 28.7519,
+    "name": "Istanbul Airport (IST)"
+  },
+  "fru": {
+    "lat": 43.0613,
+    "lng": 74.4776,
+    "name": "Bishkek Manas (FRU)"
+  },
+  "ogg": {
+    "lat": 20.8987,
+    "lng": -156.4305,
+    "name": "Kahului Maui (OGG)"
+  },
+  "hnl": {
+    "lat": 21.3245,
+    "lng": -157.9251,
+    "name": "Honolulu (HNL)"
+  },
+  "yyz": {
+    "lat": 43.6777,
+    "lng": -79.6248,
+    "name": "Toronto Pearson (YYZ)"
+  },
+  "cph": {
+    "lat": 55.6181,
+    "lng": 12.6561,
+    "name": "Copenhagen Kastrup (CPH)"
+  },
+  "fll": {
+    "lat": 26.0726,
+    "lng": -80.1527,
+    "name": "Fort Lauderdale (FLL)"
+  },
+  "phl": {
+    "lat": 39.8744,
+    "lng": -75.2424,
+    "name": "Philadelphia (PHL)"
+  },
+  "tpa": {
+    "lat": 27.9755,
+    "lng": -82.5332,
+    "name": "Tampa (TPA)"
+  },
+  "lga": {
+    "lat": 40.7769,
+    "lng": -73.874,
+    "name": "New York LaGuardia (LGA)"
+  },
+  "dca": {
+    "lat": 38.8512,
+    "lng": -77.0402,
+    "name": "Washington Reagan National (DCA)"
+  }
+}
