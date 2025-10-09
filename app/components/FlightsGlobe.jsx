@@ -6,37 +6,40 @@ import * as d3 from 'd3';
 const EARTH_RADIUS_KM = 6371;
 const AVERAGE_SPEED_KMH = 900;
 
-interface Airport {
-  code: string;
-  name: string;
-  lat: number;
-  lng: number;
-}
+/**
+ * @typedef {Object} Airport
+ * @property {string} code
+ * @property {string} name
+ * @property {number} lat
+ * @property {number} lng
+ */
 
-interface Flight {
-  id?: number;
-  dateStr: string;
-  date: Date | null;
-  src: string;
-  dest: string;
-  flightno?: string | null;
-  startLat: number;
-  startLng: number;
-  endLat: number;
-  endLng: number;
-  altitude: number;
-  year: number | null;
-  distanceKm: number;
-}
+/**
+ * @typedef {Object} Flight
+ * @property {number} [id]
+ * @property {string} dateStr
+ * @property {Date|null} date
+ * @property {string} src
+ * @property {string} dest
+ * @property {string|null} [flightno]
+ * @property {number} startLat
+ * @property {number} startLng
+ * @property {number} endLat
+ * @property {number} endLng
+ * @property {number} altitude
+ * @property {number|null} year
+ * @property {number} distanceKm
+ */
 
-interface Stats {
-  totalFlights: number;
-  totalHours: number;
-  topAirports: string[];
-  topRoute: { a: string; b: string; count: number } | null;
-}
+/**
+ * @typedef {Object} Stats
+ * @property {number} totalFlights
+ * @property {number} totalHours
+ * @property {string[]} topAirports
+ * @property {{a: string, b: string, count: number}|null} topRoute
+ */
 
-function configureArcAnimation(globeInstance: any, staticMode: boolean) {
+function configureArcAnimation(globeInstance, staticMode) {
   if (!globeInstance) return;
   if (staticMode) {
     globeInstance
@@ -53,7 +56,12 @@ function configureArcAnimation(globeInstance: any, staticMode: boolean) {
   }
 }
 
-function greatCircleDistance(a: Airport, b: Airport) {
+/**
+ * Compute the great-circle distance between two airports in radians.
+ * @param {Airport} a
+ * @param {Airport} b
+ */
+function greatCircleDistance(a, b) {
   const toRad = Math.PI / 180;
   const dLat = (b.lat - a.lat) * toRad;
   const dLon = (b.lng - a.lng) * toRad;
@@ -65,14 +73,23 @@ function greatCircleDistance(a: Airport, b: Airport) {
   return 2 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-function altitudeFor(a: Airport, b: Airport) {
+/**
+ * Derive a visually pleasing arc altitude from the distance between two airports.
+ * @param {Airport} a
+ * @param {Airport} b
+ */
+function altitudeFor(a, b) {
   const d = greatCircleDistance(a, b);
   return 0.06 + 0.24 * (d / Math.PI);
 }
 
-function computeStats(flights: Flight[]): Stats {
-  const airportCounts = new Map<string, number>();
-  const routeCounts = new Map<string, number>();
+/**
+ * @param {Flight[]} flights
+ * @returns {Stats}
+ */
+function computeStats(flights) {
+  const airportCounts = new Map();
+  const routeCounts = new Map();
   let totalKm = 0;
 
   for (const f of flights) {
@@ -92,7 +109,7 @@ function computeStats(flights: Flight[]): Stats {
     .slice(0, 5)
     .map(([code, count]) => `${code.toUpperCase()} (${count})`);
 
-  let topRoute: Stats['topRoute'] = null;
+  let topRoute = null;
   for (const [key, count] of routeCounts.entries()) {
     if (!topRoute || count > topRoute.count) {
       const [a, b] = key.split('-');
@@ -103,13 +120,13 @@ function computeStats(flights: Flight[]): Stats {
   return { totalFlights, totalHours, topAirports, topRoute };
 }
 
-export default function FlightsGlobe(): JSX.Element {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const globeRef = useRef<any | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [legendYears, setLegendYears] = useState<number[]>([]);
-  const [yearColor, setYearColor] = useState<d3.ScaleOrdinal<number, string> | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export default function FlightsGlobe() {
+  const containerRef = useRef(null);
+  const globeRef = useRef(null);
+  const [stats, setStats] = useState(null);
+  const [legendYears, setLegendYears] = useState([]);
+  const [yearColor, setYearColor] = useState(null);
+  const [error, setError] = useState(null);
   const [staticPaths, setStaticPaths] = useState(false);
   const staticPathsRef = useRef(staticPaths);
 
@@ -131,18 +148,18 @@ export default function FlightsGlobe(): JSX.Element {
           throw new Error(`Failed to load flights: ${flightsRes.status}`);
         }
 
-        const airportsRaw: Airport[] = (await airportsRes.json()).map((a: any) => ({
+        const airportsRaw = (await airportsRes.json()).map(a => ({
           code: a.code,
           name: a.name,
           lat: Number(a.lat),
           lng: Number(a.lng)
         }));
 
-        const airportMap = new Map<string, Airport>(airportsRaw.map(a => [a.code, a]));
+        const airportMap = new Map(airportsRaw.map(a => [a.code, a]));
 
         const flightsRaw = await flightsRes.json();
-        const flights: Flight[] = flightsRaw
-          .map((row: any) => {
+        const flights = flightsRaw
+          .map(row => {
             const src = airportMap.get(row.src);
             const dest = airportMap.get(row.dest);
             if (!src || !dest) {
@@ -166,18 +183,18 @@ export default function FlightsGlobe(): JSX.Element {
               altitude: altitudeFor(src, dest),
               year: dateObj ? dateObj.getFullYear() : null,
               distanceKm: greatCircleDistance(src, dest) * EARTH_RADIUS_KM
-            } satisfies Flight;
+            };
           })
-          .filter(Boolean) as Flight[];
+          .filter(Boolean);
 
         if (!mounted) return;
 
-        const years = Array.from(new Set(flights.map(f => f.year).filter(Boolean))).sort() as number[];
-        const palette = (d3.schemeTableau10 as readonly string[]) || (d3.schemeCategory10 as readonly string[]);
+        const years = Array.from(new Set(flights.map(f => f.year).filter(Boolean))).sort((a, b) => a - b);
+        const palette = d3.schemeTableau10 || d3.schemeCategory10;
         const range = palette && palette.length >= years.length
           ? palette.slice(0, years.length)
           : years.map((_, i) => d3.interpolateTurbo(i / Math.max(1, years.length - 1)));
-        const scale = d3.scaleOrdinal<number, string>().domain(years).range(range as string[]);
+        const scale = d3.scaleOrdinal().domain(years).range(range);
 
         setLegendYears(years);
         setYearColor(() => scale);
@@ -196,12 +213,12 @@ export default function FlightsGlobe(): JSX.Element {
           .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
           .backgroundColor('#000000')
           .arcStroke(0.75)
-          .arcAltitude((d: Flight) => d.altitude)
-          .arcLabel((d: Flight) => `${d.src.toUpperCase()} → ${d.dest.toUpperCase()} (${d.flightno || '—'})\n${d.dateStr}`)
+          .arcAltitude(d => d.altitude)
+          .arcLabel(d => `${d.src.toUpperCase()} → ${d.dest.toUpperCase()} (${d.flightno || '—'})\n${d.dateStr}`)
           .pointAltitude(0.01)
           .pointRadius(0.1)
           .pointColor(() => '#69b3a2')
-          .pointLabel((d: Airport) => `${d.code.toUpperCase()} — ${d.name}`);
+          .pointLabel(d => `${d.code.toUpperCase()} — ${d.name}`);
 
         globeRef.current = globeInstance;
         configureArcAnimation(globeInstance, staticPathsRef.current);
@@ -212,7 +229,7 @@ export default function FlightsGlobe(): JSX.Element {
         }
 
         globeInstance
-          .arcColor((d: Flight) => (d.year && scale.domain().includes(d.year) ? scale(d.year) : '#999'))
+          .arcColor(d => (d.year && scale.domain().includes(d.year) ? scale(d.year) : '#999'))
           .arcsData(flights)
           .pointsData(airportsRaw);
       } catch (err) {
