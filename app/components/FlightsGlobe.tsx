@@ -36,6 +36,23 @@ interface Stats {
   topRoute: { a: string; b: string; count: number } | null;
 }
 
+function configureArcAnimation(globeInstance: any, staticMode: boolean) {
+  if (!globeInstance) return;
+  if (staticMode) {
+    globeInstance
+      .arcDashLength(1)
+      .arcDashGap(0)
+      .arcDashInitialGap(() => 0)
+      .arcDashAnimateTime(0);
+  } else {
+    globeInstance
+      .arcDashLength(0.25)
+      .arcDashGap(0.7)
+      .arcDashInitialGap(() => Math.random())
+      .arcDashAnimateTime(2000);
+  }
+}
+
 function greatCircleDistance(a: Airport, b: Airport) {
   const toRad = Math.PI / 180;
   const dLat = (b.lat - a.lat) * toRad;
@@ -88,14 +105,17 @@ function computeStats(flights: Flight[]): Stats {
 
 export default function FlightsGlobe(): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const globeRef = useRef<any | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [legendYears, setLegendYears] = useState<number[]>([]);
   const [yearColor, setYearColor] = useState<d3.ScaleOrdinal<number, string> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [staticPaths, setStaticPaths] = useState(false);
+  const staticPathsRef = useRef(staticPaths);
 
   useEffect(() => {
     let mounted = true;
-    let globe: any;
+    const containerEl = containerRef.current;
 
     async function init() {
       try {
@@ -163,31 +183,28 @@ export default function FlightsGlobe(): JSX.Element {
         setYearColor(() => scale);
         setStats(computeStats(flights));
 
-        if (!containerRef.current) {
+        if (!containerEl) {
           return;
         }
 
         const { default: Globe } = await import('globe.gl');
-        if (!mounted || !containerRef.current) return;
+        if (!mounted || !containerEl) return;
 
         const globeInstance = Globe()
-          (containerRef.current)
+          (containerEl)
           .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
           .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
           .backgroundColor('#000000')
           .arcStroke(0.75)
           .arcAltitude((d: Flight) => d.altitude)
-          .arcDashLength(0.25)
-          .arcDashGap(0.7)
-          .arcDashInitialGap(() => Math.random())
-          .arcDashAnimateTime(2000)
           .arcLabel((d: Flight) => `${d.src.toUpperCase()} → ${d.dest.toUpperCase()} (${d.flightno || '—'})\n${d.dateStr}`)
           .pointAltitude(0.01)
           .pointRadius(0.1)
           .pointColor(() => '#69b3a2')
           .pointLabel((d: Airport) => `${d.code.toUpperCase()} — ${d.name}`);
 
-        globe = globeInstance;
+        globeRef.current = globeInstance;
+        configureArcAnimation(globeInstance, staticPathsRef.current);
 
         const focus = airportMap.get('phx');
         if (focus) {
@@ -210,12 +227,17 @@ export default function FlightsGlobe(): JSX.Element {
 
     return () => {
       mounted = false;
-      if (containerRef.current) {
-        containerRef.current.innerHTML = '';
+      globeRef.current = null;
+      if (containerEl) {
+        containerEl.innerHTML = '';
       }
-      globe = null;
     };
   }, []);
+
+  useEffect(() => {
+    staticPathsRef.current = staticPaths;
+    configureArcAnimation(globeRef.current, staticPaths);
+  }, [staticPaths]);
 
   const legend = useMemo(() => {
     if (!yearColor || legendYears.length === 0) return null;
@@ -228,6 +250,16 @@ export default function FlightsGlobe(): JSX.Element {
       <div className="hud">
         <div>
           <b>Flights Globe</b>
+        </div>
+        <div style={{ marginTop: 6, lineHeight: 1.4 }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={staticPaths}
+              onChange={event => setStaticPaths(event.target.checked)}
+            />
+            Static flight paths
+          </label>
         </div>
         {error ? (
           <div style={{ marginTop: 6 }}>Unable to load flight data: {error}</div>
