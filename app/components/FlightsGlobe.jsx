@@ -35,6 +35,7 @@ const AVERAGE_SPEED_KMH = 900;
  * @typedef {Object} Stats
  * @property {number} totalFlights
  * @property {number} totalHours
+ * @property {number} uniqueAirports
  * @property {string[]} topAirports
  * @property {{a: string, b: string, count: number}|null} topRoute
  */
@@ -103,6 +104,7 @@ function computeStats(flights) {
 
   const totalFlights = flights.length;
   const totalHours = totalKm / AVERAGE_SPEED_KMH;
+  const uniqueAirports = airportCounts.size;
 
   const topAirports = Array.from(airportCounts.entries())
     .sort((a, b) => b[1] - a[1])
@@ -117,7 +119,7 @@ function computeStats(flights) {
     }
   }
 
-  return { totalFlights, totalHours, topAirports, topRoute };
+  return { totalFlights, totalHours, uniqueAirports, topAirports, topRoute };
 }
 
 export default function FlightsGlobe() {
@@ -284,6 +286,7 @@ export default function FlightsGlobe() {
           <div style={{ marginTop: 6, lineHeight: 1.4 }}>
             <div>Total flights: <b>{stats.totalFlights}</b></div>
             <div>Total hours (est.): <b>{stats.totalHours.toFixed(1)}h</b></div>
+            <div>Airports visited: <b>{stats.uniqueAirports}</b></div>
             <div>
               Most flown route:{' '}
               <b>{stats.topRoute ? `${stats.topRoute.a} ↔ ${stats.topRoute.b} (${stats.topRoute.count})` : '—'}</b>
