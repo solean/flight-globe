@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
 const EARTH_RADIUS_KM = 6371;
+const EARTH_CIRCUMFERENCE_KM = 2 * Math.PI * EARTH_RADIUS_KM;
 const AVERAGE_SPEED_KMH = 900;
 
 /**
@@ -35,6 +36,8 @@ const AVERAGE_SPEED_KMH = 900;
  * @typedef {Object} Stats
  * @property {number} totalFlights
  * @property {number} totalHours
+ * @property {number} totalDistanceKm
+ * @property {number} tripsAroundWorld
  * @property {number} uniqueAirports
  * @property {string[]} topAirports
  * @property {{a: string, b: string, count: number}|null} topRoute
@@ -119,7 +122,9 @@ function computeStats(flights) {
     }
   }
 
-  return { totalFlights, totalHours, uniqueAirports, topAirports, topRoute };
+  const tripsAroundWorld = EARTH_CIRCUMFERENCE_KM > 0 ? totalKm / EARTH_CIRCUMFERENCE_KM : 0;
+
+  return { totalFlights, totalHours, totalDistanceKm: totalKm, tripsAroundWorld, uniqueAirports, topAirports, topRoute };
 }
 
 export default function FlightsGlobe() {
@@ -286,6 +291,10 @@ export default function FlightsGlobe() {
           <div style={{ marginTop: 6, lineHeight: 1.4 }}>
             <div>Total flights: <b>{stats.totalFlights}</b></div>
             <div>Total hours (est.): <b>{stats.totalHours.toFixed(1)}h</b></div>
+            <div>
+              Total distance: <b>{stats.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km</b>{' '}
+              (<b>{stats.tripsAroundWorld.toFixed(2)}×</b> around the Earth)
+            </div>
             <div>Airports visited: <b>{stats.uniqueAirports}</b></div>
             <div>
               Most flown route:{' '}
