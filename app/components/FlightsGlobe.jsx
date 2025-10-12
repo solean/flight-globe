@@ -297,6 +297,19 @@ export default function FlightsGlobe() {
 
   const statCards = useMemo(() => {
     if (!stats) return [];
+    const airportsDetailParts = [];
+    if (stats.topAirports.length > 0) {
+      airportsDetailParts.push(`Top: ${stats.topAirports.join(', ')}`);
+    }
+    if (stats.topRoute) {
+      airportsDetailParts.push(`Busiest Route: ${stats.topRoute.a} ↔ ${stats.topRoute.b} (${stats.topRoute.count})`);
+    }
+    const airportsDetail =
+      airportsDetailParts.length === 0
+        ? null
+        : airportsDetailParts.length === 1
+          ? airportsDetailParts[0]
+          : airportsDetailParts;
     return [
       {
         id: 'flightSummary',
@@ -307,16 +320,15 @@ export default function FlightsGlobe() {
       {
         id: 'totalDistance',
         label: 'Distance Traveled',
-        value: `${stats.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`
+        value: `${stats.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`,
+        detail: `Earth circuits: ${stats.tripsAroundWorld.toFixed(2)}`
       },
-      { id: 'aroundWorld', label: 'Earth Circuits', value: stats.tripsAroundWorld.toFixed(2) },
-      { id: 'uniqueAirports', label: 'Airports Visited', value: stats.uniqueAirports.toString() },
       {
-        id: 'topRoute',
-        label: 'Busiest Route',
-        value: stats.topRoute ? `${stats.topRoute.a} ↔ ${stats.topRoute.b} (${stats.topRoute.count})` : '—'
-      },
-      { id: 'topAirports', label: 'Top Airports', value: stats.topAirports.join(', ') || '—' }
+        id: 'uniqueAirports',
+        label: 'Airports Visited',
+        value: stats.uniqueAirports.toString(),
+        detail: airportsDetail
+      }
     ];
   }, [stats]);
 
@@ -325,7 +337,7 @@ export default function FlightsGlobe() {
       <div id="globe-container" ref={containerRef} />
       <div className="hud">
         <div className="hud-header">
-          <div className="hud-title">Flight Command</div>
+          <div className="hud-title">Flight Paths</div>
         </div>
         <div className="hud-status-row">
           <span className="hud-status-tag">sync</span>
@@ -365,7 +377,13 @@ export default function FlightsGlobe() {
               <div key={card.id} className="hud-stat-card">
                 <span className="hud-stat-label">{card.label}</span>
                 <span className="hud-stat-value">{card.value}</span>
-                {card.detail && <span className="hud-stat-detail">{card.detail}</span>}
+                {Array.isArray(card.detail)
+                  ? card.detail.map((line, index) => (
+                      <span key={index} className="hud-stat-detail">
+                        {line}
+                      </span>
+                    ))
+                  : card.detail && <span className="hud-stat-detail">{card.detail}</span>}
               </div>
             ))}
           </div>
