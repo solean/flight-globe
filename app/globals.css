@@ -50,10 +50,10 @@ body::before {
   top: 5%;
   left: 4%;
   max-width: 360px;
-  background: linear-gradient(135deg, rgba(16, 12, 28, 0.94), rgba(32, 16, 48, 0.72));
+  background: linear-gradient(135deg, rgba(16, 12, 28, 0.58), rgba(32, 16, 48, 0.32));
   padding: 22px 26px 24px;
   border-radius: 18px 22px 14px 18px;
-  border: 2px solid rgba(255, 102, 0, 0.45);
+  /* border: 2px solid rgba(255, 102, 0, 0.45); */
   box-shadow:
     0 0 22px rgba(255, 82, 0, 0.18),
     inset 0 0 38px rgba(255, 82, 0, 0.15);
@@ -70,16 +70,16 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(120deg, rgba(255, 120, 0, 0.14), transparent 35%, rgba(255, 0, 102, 0.14)),
+    linear-gradient(120deg, rgba(255, 120, 0, 0.1), transparent 35%, rgba(255, 0, 102, 0.1)),
     repeating-linear-gradient(
       -45deg,
       transparent 0,
       transparent 12px,
-      rgba(255, 120, 0, 0.08) 12px,
-      rgba(255, 120, 0, 0.08) 16px
+      rgba(255, 120, 0, 0.06) 12px,
+      rgba(255, 120, 0, 0.06) 16px
     );
   mix-blend-mode: screen;
-  opacity: 0.55;
+  opacity: 0.35;
 }
 
 .hud-header {
@@ -284,10 +284,12 @@ body::before {
 }
 
 .hud-stat-detail {
+  display: block;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(255, 198, 150, 0.74);
+  margin-top: 4px;
 }
 
 .hud-error,
