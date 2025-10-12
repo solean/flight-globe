@@ -295,27 +295,56 @@ export default function FlightsGlobe() {
     return legendYears.map(year => ({ year, color: yearColor(year) }));
   }, [legendYears, yearColor]);
 
+  const statCards = useMemo(() => {
+    if (!stats) return [];
+    return [
+      {
+        id: 'flightSummary',
+        label: 'Flight Summary',
+        value: `${stats.totalFlights.toLocaleString()} flights`,
+        detail: `${stats.totalHours.toFixed(1)} hours`
+      },
+      {
+        id: 'totalDistance',
+        label: 'Distance Traveled',
+        value: `${stats.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`
+      },
+      { id: 'aroundWorld', label: 'Earth Circuits', value: stats.tripsAroundWorld.toFixed(2) },
+      { id: 'uniqueAirports', label: 'Airports Visited', value: stats.uniqueAirports.toString() },
+      {
+        id: 'topRoute',
+        label: 'Busiest Route',
+        value: stats.topRoute ? `${stats.topRoute.a} ↔ ${stats.topRoute.b} (${stats.topRoute.count})` : '—'
+      },
+      { id: 'topAirports', label: 'Top Airports', value: stats.topAirports.join(', ') || '—' }
+    ];
+  }, [stats]);
+
   return (
     <>
       <div id="globe-container" ref={containerRef} />
       <div className="hud">
-        <div>
-          <b>Flights Globe</b>
+        <div className="hud-header">
+          <div className="hud-title">Flight Command</div>
         </div>
-        <div style={{ marginTop: 6, lineHeight: 1.4 }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+        <div className="hud-status-row">
+          <span className="hud-status-tag">sync</span>
+          <span className="hud-status-value">{filteredFlights.length.toString().padStart(3, '0')}</span>
+          <span className="hud-status-metric">active traces</span>
+        </div>
+        <div className="hud-divider" />
+        <div className="hud-controls">
+          <label className="hud-toggle">
             <input
               type="checkbox"
               checked={staticPaths}
               onChange={event => setStaticPaths(event.target.checked)}
             />
-            Static flight paths
+            <span className="hud-toggle-label">Static flight paths</span>
           </label>
-        </div>
-        {legendYears.length > 0 && (
-          <div style={{ marginTop: 6, lineHeight: 1.4 }}>
-            <label style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-              <span>Filter by year:</span>
+          {legendYears.length > 0 && (
+            <label className="hud-select">
+              <span className="hud-select-label">Year window</span>
               <select value={selectedYear} onChange={event => setSelectedYear(event.target.value)}>
                 <option value="all">All years</option>
                 {legendYears.map(year => (
@@ -325,35 +354,31 @@ export default function FlightsGlobe() {
                 ))}
               </select>
             </label>
-          </div>
-        )}
+          )}
+        </div>
+        <div className="hud-divider" />
         {error ? (
-          <div style={{ marginTop: 6 }}>Unable to load flight data: {error}</div>
+          <div className="hud-error">Unable to load flight data: {error}</div>
         ) : stats ? (
-          <div style={{ marginTop: 6, lineHeight: 1.4 }}>
-            <div>Total flights: <b>{stats.totalFlights}</b></div>
-            <div>Total hours (est.): <b>{stats.totalHours.toFixed(1)}h</b></div>
-            <div>
-              Total distance: <b>{stats.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km</b>{' '}
-              (<b>{stats.tripsAroundWorld.toFixed(2)}×</b> around the Earth)
-            </div>
-            <div>Airports visited: <b>{stats.uniqueAirports}</b></div>
-            <div>
-              Most flown route:{' '}
-              <b>{stats.topRoute ? `${stats.topRoute.a} ↔ ${stats.topRoute.b} (${stats.topRoute.count})` : '—'}</b>
-            </div>
-            <div>Top airports: <b>{stats.topAirports.join(', ')}</b></div>
+          <div className="hud-stats">
+            {statCards.map(card => (
+              <div key={card.id} className="hud-stat-card">
+                <span className="hud-stat-label">{card.label}</span>
+                <span className="hud-stat-value">{card.value}</span>
+                {card.detail && <span className="hud-stat-detail">{card.detail}</span>}
+              </div>
+            ))}
           </div>
         ) : (
-          <div style={{ marginTop: 6 }}>Loading flight data…</div>
+          <div className="hud-loading">Loading flight data…</div>
         )}
         {legend && legend.length > 0 && (
-          <div style={{ marginTop: 6, lineHeight: 1.4 }}>
-            <div>Colors by year:</div>
-            <div>
+          <div className="hud-legend">
+            <div className="hud-legend-title">Spectral mapping</div>
+            <div className="hud-legend-items">
               {legend.map(item => (
-                <span key={item.year} style={{ display: 'inline-flex', alignItems: 'center', marginRight: 8, marginBottom: 4 }}>
-                  <span style={{ display: 'inline-block', width: 10, height: 10, background: item.color, marginRight: 6, borderRadius: 2 }} />
+                <span key={item.year} className="hud-legend-item">
+                  <span className="hud-legend-swatch" style={{ background: item.color }} />
                   <span>{item.year}</span>
                 </span>
               ))}
