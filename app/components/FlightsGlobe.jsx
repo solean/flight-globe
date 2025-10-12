@@ -130,6 +130,8 @@ function computeStats(flights) {
 export default function FlightsGlobe() {
   const containerRef = useRef(null);
   const globeRef = useRef(null);
+  const [flights, setFlights] = useState(null);
+  const [selectedYear, setSelectedYear] = useState('all');
   const [stats, setStats] = useState(null);
   const [legendYears, setLegendYears] = useState([]);
   const [yearColor, setYearColor] = useState(null);
@@ -205,6 +207,7 @@ export default function FlightsGlobe() {
 
         setLegendYears(years);
         setYearColor(() => scale);
+        setFlights(flights);
         setStats(computeStats(flights));
 
         if (!containerEl) {
@@ -263,6 +266,30 @@ export default function FlightsGlobe() {
     configureArcAnimation(globeRef.current, staticPaths);
   }, [staticPaths]);
 
+  const filteredFlights = useMemo(() => {
+    if (!flights) {
+      return [];
+    }
+    if (selectedYear === 'all') {
+      return flights;
+    }
+    const yearNum = Number(selectedYear);
+    return flights.filter(f => f.year === yearNum);
+  }, [flights, selectedYear]);
+
+  useEffect(() => {
+    if (!flights) {
+      setStats(null);
+      return;
+    }
+    setStats(computeStats(filteredFlights));
+  }, [flights, filteredFlights]);
+
+  useEffect(() => {
+    if (!globeRef.current) return;
+    globeRef.current.arcsData(filteredFlights);
+  }, [filteredFlights]);
+
   const legend = useMemo(() => {
     if (!yearColor || legendYears.length === 0) return null;
     return legendYears.map(year => ({ year, color: yearColor(year) }));
@@ -285,6 +312,21 @@ export default function FlightsGlobe() {
             Static flight paths
           </label>
         </div>
+        {legendYears.length > 0 && (
+          <div style={{ marginTop: 6, lineHeight: 1.4 }}>
+            <label style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+              <span>Filter by year:</span>
+              <select value={selectedYear} onChange={event => setSelectedYear(event.target.value)}>
+                <option value="all">All years</option>
+                {legendYears.map(year => (
+                  <option key={year} value={String(year)}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
         {error ? (
           <div style={{ marginTop: 6 }}>Unable to load flight data: {error}</div>
         ) : stats ? (
