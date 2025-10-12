@@ -6,6 +6,8 @@ import * as d3 from 'd3';
 const EARTH_RADIUS_KM = 6371;
 const EARTH_CIRCUMFERENCE_KM = 2 * Math.PI * EARTH_RADIUS_KM;
 const AVERAGE_SPEED_KMH = 900;
+const REGULAR_GLOBE_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+const BLACK_GLOBE_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-dark.jpg';
 
 /**
  * @typedef {Object} Airport
@@ -137,7 +139,9 @@ export default function FlightsGlobe() {
   const [yearColor, setYearColor] = useState(null);
   const [error, setError] = useState(null);
   const [staticPaths, setStaticPaths] = useState(false);
+  const [blackGlobe, setBlackGlobe] = useState(false);
   const staticPathsRef = useRef(staticPaths);
+  const blackGlobeRef = useRef(blackGlobe);
 
   useEffect(() => {
     let mounted = true;
@@ -219,7 +223,7 @@ export default function FlightsGlobe() {
 
         const globeInstance = Globe()
           (containerEl)
-          .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+          .globeImageUrl(blackGlobeRef.current ? BLACK_GLOBE_TEXTURE : REGULAR_GLOBE_TEXTURE)
           .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
           .backgroundColor('#000000')
           .arcStroke(0.75)
@@ -265,6 +269,12 @@ export default function FlightsGlobe() {
     staticPathsRef.current = staticPaths;
     configureArcAnimation(globeRef.current, staticPaths);
   }, [staticPaths]);
+
+  useEffect(() => {
+    blackGlobeRef.current = blackGlobe;
+    if (!globeRef.current) return;
+    globeRef.current.globeImageUrl(blackGlobe ? BLACK_GLOBE_TEXTURE : REGULAR_GLOBE_TEXTURE);
+  }, [blackGlobe]);
 
   const filteredFlights = useMemo(() => {
     if (!flights) {
@@ -346,6 +356,14 @@ export default function FlightsGlobe() {
         </div>
         <div className="hud-divider" />
         <div className="hud-controls">
+          <label className="hud-toggle">
+            <input
+              type="checkbox"
+              checked={blackGlobe}
+              onChange={event => setBlackGlobe(event.target.checked)}
+            />
+            <span className="hud-toggle-label">Black globe</span>
+          </label>
           <label className="hud-toggle">
             <input
               type="checkbox"
