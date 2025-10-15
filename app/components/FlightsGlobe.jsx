@@ -140,6 +140,7 @@ export default function FlightsGlobe() {
   const [error, setError] = useState(null);
   const [staticPaths, setStaticPaths] = useState(false);
   const [blackGlobe, setBlackGlobe] = useState(false);
+  const [hudExpanded, setHudExpanded] = useState(true);
   const staticPathsRef = useRef(staticPaths);
   const blackGlobeRef = useRef(blackGlobe);
 
@@ -276,6 +277,13 @@ export default function FlightsGlobe() {
     globeRef.current.globeImageUrl(blackGlobe ? BLACK_GLOBE_TEXTURE : REGULAR_GLOBE_TEXTURE);
   }, [blackGlobe]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.innerWidth < 700) {
+      setHudExpanded(false);
+    }
+  }, []);
+
   const filteredFlights = useMemo(() => {
     if (!flights) {
       return [];
@@ -345,81 +353,100 @@ export default function FlightsGlobe() {
   return (
     <>
       <div id="globe-container" ref={containerRef} />
-      <div className="hud">
+      <div
+        className={`hud ${hudExpanded ? 'is-expanded' : 'is-collapsed'}`}
+        onClick={!hudExpanded ? () => setHudExpanded(true) : undefined}
+      >
         <div className="hud-header">
-          <div className="hud-title">Flight Paths</div>
-        </div>
-        <div className="hud-status-row">
-          <span className="hud-status-tag">sync</span>
-          <span className="hud-status-value">{filteredFlights.length.toString().padStart(3, '0')}</span>
-          <span className="hud-status-metric">active traces</span>
-        </div>
-        <div className="hud-divider" />
-        <div className="hud-controls">
-          <label className="hud-toggle">
-            <input
-              type="checkbox"
-              checked={blackGlobe}
-              onChange={event => setBlackGlobe(event.target.checked)}
-            />
-            <span className="hud-toggle-label">Black globe</span>
-          </label>
-          <label className="hud-toggle">
-            <input
-              type="checkbox"
-              checked={staticPaths}
-              onChange={event => setStaticPaths(event.target.checked)}
-            />
-            <span className="hud-toggle-label">Static flight paths</span>
-          </label>
-          {legendYears.length > 0 && (
-            <label className="hud-select">
-              <span className="hud-select-label">Year window</span>
-              <select value={selectedYear} onChange={event => setSelectedYear(event.target.value)}>
-                <option value="all">All years</option>
-                {legendYears.map(year => (
-                  <option key={year} value={String(year)}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-        <div className="hud-divider" />
-        {error ? (
-          <div className="hud-error">Unable to load flight data: {error}</div>
-        ) : stats ? (
-          <div className="hud-stats">
-            {statCards.map(card => (
-              <div key={card.id} className="hud-stat-card">
-                <span className="hud-stat-label">{card.label}</span>
-                <span className="hud-stat-value">{card.value}</span>
-                {Array.isArray(card.detail)
-                  ? card.detail.map((line, index) => (
-                      <span key={index} className="hud-stat-detail">
-                        {line}
-                      </span>
-                    ))
-                  : card.detail && <span className="hud-stat-detail">{card.detail}</span>}
-              </div>
-            ))}
+          <div className="hud-header-text">
+            <div className="hud-title">Flight Paths</div>
           </div>
-        ) : (
-          <div className="hud-loading">Loading flight data…</div>
-        )}
-        {legend && legend.length > 0 && (
-          <div className="hud-legend">
-            <div className="hud-legend-title">Spectral mapping</div>
-            <div className="hud-legend-items">
-              {legend.map(item => (
-                <span key={item.year} className="hud-legend-item">
-                  <span className="hud-legend-swatch" style={{ background: item.color }} />
-                  <span>{item.year}</span>
-                </span>
-              ))}
+          <button
+            type="button"
+            className="hud-visibility-toggle"
+            onClick={() => setHudExpanded(value => !value)}
+            aria-expanded={hudExpanded}
+          >
+            {hudExpanded ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        {hudExpanded ? (
+          <>
+            <div className="hud-status-row">
+              <span className="hud-status-tag">sync</span>
+              <span className="hud-status-value">{filteredFlights.length.toString().padStart(3, '0')}</span>
+              <span className="hud-status-metric">active traces</span>
             </div>
-          </div>
+            <div className="hud-divider" />
+            <div className="hud-controls">
+              <label className="hud-toggle">
+                <input
+                  type="checkbox"
+                  checked={blackGlobe}
+                  onChange={event => setBlackGlobe(event.target.checked)}
+                />
+                <span className="hud-toggle-label">Black globe</span>
+              </label>
+              <label className="hud-toggle">
+                <input
+                  type="checkbox"
+                  checked={staticPaths}
+                  onChange={event => setStaticPaths(event.target.checked)}
+                />
+                <span className="hud-toggle-label">Static flight paths</span>
+              </label>
+              {legendYears.length > 0 && (
+                <label className="hud-select">
+                  <span className="hud-select-label">Year window</span>
+                  <select value={selectedYear} onChange={event => setSelectedYear(event.target.value)}>
+                    <option value="all">All years</option>
+                    {legendYears.map(year => (
+                      <option key={year} value={String(year)}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+            <div className="hud-divider" />
+            {error ? (
+              <div className="hud-error">Unable to load flight data: {error}</div>
+            ) : stats ? (
+              <div className="hud-stats">
+                {statCards.map(card => (
+                  <div key={card.id} className="hud-stat-card">
+                    <span className="hud-stat-label">{card.label}</span>
+                    <span className="hud-stat-value">{card.value}</span>
+                    {Array.isArray(card.detail)
+                      ? card.detail.map((line, index) => (
+                          <span key={index} className="hud-stat-detail">
+                            {line}
+                          </span>
+                        ))
+                      : card.detail && <span className="hud-stat-detail">{card.detail}</span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="hud-loading">Loading flight data…</div>
+            )}
+            {legend && legend.length > 0 && (
+              <div className="hud-legend">
+                <div className="hud-legend-title">Spectral mapping</div>
+                <div className="hud-legend-items">
+                  {legend.map(item => (
+                    <span key={item.year} className="hud-legend-item">
+                      <span className="hud-legend-swatch" style={{ background: item.color }} />
+                      <span>{item.year}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="hud-collapsed-hint">Dashboard hidden</div>
         )}
       </div>
     </>
