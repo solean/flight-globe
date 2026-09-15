@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAirports } from '../../../lib/db';
+import { getAirports } from '../../../lib/flight-data';
 
 export async function GET() {
   try {

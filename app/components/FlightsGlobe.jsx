@@ -45,6 +45,19 @@ const BLACK_GLOBE_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-dar
  * @property {{a: string, b: string, count: number}|null} topRoute
  */
 
+/**
+ * Parse `YYYY-MM-DD` at local midnight. `new Date('2025-01-01')` is parsed as
+ * UTC, which lands on the previous year west of Greenwich and would drop the
+ * flight into the wrong year bucket.
+ * @param {string} value
+ * @returns {Date|null}
+ */
+function parseLocalDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
 function configureArcAnimation(globeInstance, staticMode) {
   if (!globeInstance) return;
   if (staticMode) {
@@ -181,7 +194,7 @@ export default function FlightsGlobe() {
             }
 
             const dateStr = row.date || '';
-            const dateObj = dateStr ? new Date(dateStr) : null;
+            const dateObj = parseLocalDate(dateStr);
 
             return {
               id: row.id,

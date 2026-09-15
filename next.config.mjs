@@ -5,9 +5,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['better-sqlite3']
-  },
   webpack: config => {
     config.resolve = config.resolve || {};
     config.resolve.alias = config.resolve.alias || {};
