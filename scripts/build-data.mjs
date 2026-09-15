@@ -5,11 +5,19 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { DATA_DIR, loadSources, parseAirports, parseFlights } from './data-source.mjs';
+import { DATA_DIR, dataRepo, loadSources, parseAirports, parseFlights } from './data-source.mjs';
 
 const OUT = path.join(DATA_DIR, 'flights.json');
 
 const source = await loadSources();
+
+// A deployment configured for the real log must never quietly ship sample data.
+if (source.sample && dataRepo() && (process.env.VERCEL || process.env.CI)) {
+  console.error(`build-data: FLIGHT_DATA_REPO is set to "${dataRepo()}" but no usable FLIGHT_DATA_TOKEN was found.`);
+  console.error('build-data: refusing to build with sample data. Add FLIGHT_DATA_TOKEN (fine-grained PAT, Contents: Read) and redeploy.');
+  process.exit(1);
+}
+
 const airports = parseAirports(source.airportsJson).sort((a, b) => a.code.localeCompare(b.code));
 const flights = parseFlights(source.flightsCsv, airports);
 
