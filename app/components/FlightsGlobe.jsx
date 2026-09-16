@@ -1,18 +1,22 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import { EARTH_CIRCUMFERENCE_KM, arcAltitude, greatCircleKm } from '../../lib/geo';
+import { buildPassport } from '../../lib/passport';
+import Passport from './Passport';
 
-const EARTH_RADIUS_KM = 6371;
-const EARTH_CIRCUMFERENCE_KM = 2 * Math.PI * EARTH_RADIUS_KM;
-const AVERAGE_SPEED_KMH = 900;
 const REGULAR_GLOBE_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
 const BLACK_GLOBE_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-dark.jpg';
+const COUNTRIES_GEOJSON = 'https://unpkg.com/globe.gl/example/datasets/ne_110m_admin_0_countries.geojson';
+const FOCUS_RING_MS = 6000;
 
 /**
  * @typedef {Object} Airport
  * @property {string} code
  * @property {string} name
+ * @property {string} city
+ * @property {string} country
  * @property {number} lat
  * @property {number} lng
  */
@@ -25,6 +29,7 @@ const BLACK_GLOBE_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-dar
  * @property {string} src
  * @property {string} dest
  * @property {string|null} [flightno]
+ * @property {string|null} [carrier]
  * @property {number} startLat
  * @property {number} startLng
  * @property {number} endLat
@@ -32,17 +37,6 @@ const BLACK_GLOBE_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-dar
  * @property {number} altitude
  * @property {number|null} year
  * @property {number} distanceKm
- */
-
-/**
- * @typedef {Object} Stats
- * @property {number} totalFlights
- * @property {number} totalHours
- * @property {number} totalDistanceKm
- * @property {number} tripsAroundWorld
- * @property {number} uniqueAirports
- * @property {string[]} topAirports
- * @property {{a: string, b: string, count: number}|null} topRoute
  */
 
 /**
@@ -76,84 +70,48 @@ function configureArcAnimation(globeInstance, staticMode) {
 }
 
 /**
- * Compute the great-circle distance between two airports in radians.
- * @param {Airport} a
- * @param {Airport} b
- */
-function greatCircleDistance(a, b) {
-  const toRad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * toRad;
-  const dLon = (b.lng - a.lng) * toRad;
-  const lat1 = a.lat * toRad;
-  const lat2 = b.lat * toRad;
-  const sinDLat = Math.sin(dLat / 2);
-  const sinDLon = Math.sin(dLon / 2);
-  const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
-  return 2 * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-/**
- * Derive a visually pleasing arc altitude from the distance between two airports.
- * @param {Airport} a
- * @param {Airport} b
- */
-function altitudeFor(a, b) {
-  const d = greatCircleDistance(a, b);
-  return 0.06 + 0.24 * (d / Math.PI);
-}
-
-/**
+ * Reshape the globe's arc rows back into the row shape the API serves, which is
+ * what `buildPassport` consumes.
  * @param {Flight[]} flights
- * @returns {Stats}
+ * @param {{airports: Airport[], countries: Object[], airlines: Object[]}} reference
+ * @param {string[]} [homeBases]
  */
-function computeStats(flights) {
-  const airportCounts = new Map();
-  const routeCounts = new Map();
-  let totalKm = 0;
-
-  for (const f of flights) {
-    airportCounts.set(f.src, (airportCounts.get(f.src) || 0) + 1);
-    airportCounts.set(f.dest, (airportCounts.get(f.dest) || 0) + 1);
-    totalKm += f.distanceKm || 0;
-
-    const key = [f.src, f.dest].sort().join('-');
-    routeCounts.set(key, (routeCounts.get(key) || 0) + 1);
-  }
-
-  const totalFlights = flights.length;
-  const totalHours = totalKm / AVERAGE_SPEED_KMH;
-  const uniqueAirports = airportCounts.size;
-
-  const topAirports = Array.from(airportCounts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([code, count]) => `${code.toUpperCase()} (${count})`);
-
-  let topRoute = null;
-  for (const [key, count] of routeCounts.entries()) {
-    if (!topRoute || count > topRoute.count) {
-      const [a, b] = key.split('-');
-      topRoute = { a: a.toUpperCase(), b: b.toUpperCase(), count };
-    }
-  }
-
-  const tripsAroundWorld = EARTH_CIRCUMFERENCE_KM > 0 ? totalKm / EARTH_CIRCUMFERENCE_KM : 0;
-
-  return { totalFlights, totalHours, totalDistanceKm: totalKm, tripsAroundWorld, uniqueAirports, topAirports, topRoute };
+function passportInput(flights, reference, homeBases) {
+  return {
+    flights: flights.map(f => ({
+      id: f.id,
+      date: f.dateStr,
+      src: f.src,
+      dest: f.dest,
+      flightno: f.flightno,
+      carrier: f.carrier
+    })),
+    airports: reference.airports,
+    countries: reference.countries,
+    airlines: reference.airlines,
+    homeBases
+  };
 }
 
 export default function FlightsGlobe() {
   const containerRef = useRef(null);
   const globeRef = useRef(null);
+  const airportIndexRef = useRef(null);
+  const countryFeaturesRef = useRef(null);
+  const ringTimeoutRef = useRef(null);
   const [flights, setFlights] = useState(null);
+  const [reference, setReference] = useState({ airports: [], countries: [], airlines: [] });
   const [selectedYear, setSelectedYear] = useState('all');
-  const [stats, setStats] = useState(null);
   const [legendYears, setLegendYears] = useState([]);
   const [yearColor, setYearColor] = useState(null);
   const [error, setError] = useState(null);
   const [staticPaths, setStaticPaths] = useState(false);
   const [blackGlobe, setBlackGlobe] = useState(false);
+  const [showCountries, setShowCountries] = useState(false);
+  const [countriesError, setCountriesError] = useState(null);
   const [hudExpanded, setHudExpanded] = useState(true);
+  const [passportOpen, setPassportOpen] = useState(false);
+  const [globeReady, setGlobeReady] = useState(false);
   const staticPathsRef = useRef(staticPaths);
   const blackGlobeRef = useRef(blackGlobe);
 
@@ -163,9 +121,11 @@ export default function FlightsGlobe() {
 
     async function init() {
       try {
-        const [airportsRes, flightsRes] = await Promise.all([
+        const [airportsRes, flightsRes, countriesRes, airlinesRes] = await Promise.all([
           fetch('/api/airports'),
-          fetch('/api/flights')
+          fetch('/api/flights'),
+          fetch('/api/countries'),
+          fetch('/api/airlines')
         ]);
 
         if (!airportsRes.ok) {
@@ -174,15 +134,26 @@ export default function FlightsGlobe() {
         if (!flightsRes.ok) {
           throw new Error(`Failed to load flights: ${flightsRes.status}`);
         }
+        if (!countriesRes.ok) {
+          throw new Error(`Failed to load countries: ${countriesRes.status}`);
+        }
+        if (!airlinesRes.ok) {
+          throw new Error(`Failed to load airlines: ${airlinesRes.status}`);
+        }
 
         const airportsRaw = (await airportsRes.json()).map(a => ({
           code: a.code,
           name: a.name,
+          city: a.city,
+          country: a.country,
           lat: Number(a.lat),
           lng: Number(a.lng)
         }));
 
         const airportMap = new Map(airportsRaw.map(a => [a.code, a]));
+        airportIndexRef.current = airportMap;
+
+        const [countriesRaw, airlinesRaw] = await Promise.all([countriesRes.json(), airlinesRes.json()]);
 
         const flightsRaw = await flightsRes.json();
         const flights = flightsRaw
@@ -203,13 +174,14 @@ export default function FlightsGlobe() {
               src: row.src,
               dest: row.dest,
               flightno: row.flightno ?? null,
+              carrier: row.carrier ?? null,
               startLat: src.lat,
               startLng: src.lng,
               endLat: dest.lat,
               endLng: dest.lng,
-              altitude: altitudeFor(src, dest),
+              altitude: arcAltitude(src, dest),
               year: dateObj ? dateObj.getFullYear() : null,
-              distanceKm: greatCircleDistance(src, dest) * EARTH_RADIUS_KM
+              distanceKm: greatCircleKm(src, dest)
             };
           })
           .filter(Boolean);
@@ -226,7 +198,7 @@ export default function FlightsGlobe() {
         setLegendYears(years);
         setYearColor(() => scale);
         setFlights(flights);
-        setStats(computeStats(flights));
+        setReference({ airports: airportsRaw, countries: countriesRaw, airlines: airlinesRaw });
 
         if (!containerEl) {
           return;
@@ -246,7 +218,16 @@ export default function FlightsGlobe() {
           .pointAltitude(0.01)
           .pointRadius(0.1)
           .pointColor(() => '#69b3a2')
-          .pointLabel(d => `${d.code.toUpperCase()} — ${d.name}`);
+          .pointLabel(d => `${d.code.toUpperCase()} — ${d.name}`)
+          .polygonAltitude(0.007)
+          .polygonSideColor(() => 'rgba(105, 179, 162, 0.12)')
+          .polygonStrokeColor(d => (d.__home ? '#e8b959' : '#69b3a2'))
+          .polygonCapColor(d => (d.__home ? 'rgba(232, 185, 89, 0.22)' : 'rgba(105, 179, 162, 0.26)'))
+          .polygonLabel(d => `${d.__flag} ${d.__name}\n${d.__detail}`)
+          .ringColor(() => t => `rgba(232, 185, 89, ${1 - t})`)
+          .ringMaxRadius(5)
+          .ringPropagationSpeed(2.4)
+          .ringRepeatPeriod(700);
 
         globeRef.current = globeInstance;
         configureArcAnimation(globeInstance, staticPathsRef.current);
@@ -260,6 +241,8 @@ export default function FlightsGlobe() {
           .arcColor(d => (d.year && scale.domain().includes(d.year) ? scale(d.year) : '#999'))
           .arcsData(flights)
           .pointsData(airportsRaw);
+
+        setGlobeReady(true);
       } catch (err) {
         console.error(err);
         if (mounted) {
@@ -273,6 +256,9 @@ export default function FlightsGlobe() {
     return () => {
       mounted = false;
       globeRef.current = null;
+      setGlobeReady(false);
+      clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = null;
       if (containerEl) {
         containerEl.innerHTML = '';
       }
@@ -308,32 +294,127 @@ export default function FlightsGlobe() {
     return flights.filter(f => f.year === yearNum);
   }, [flights, selectedYear]);
 
-  useEffect(() => {
-    if (!flights) {
-      setStats(null);
-      return;
-    }
-    setStats(computeStats(filteredFlights));
-  }, [flights, filteredFlights]);
+  const fullPassport = useMemo(() => {
+    if (!flights || reference.airports.length === 0) return null;
+    return buildPassport(passportInput(flights, reference));
+  }, [flights, reference]);
+
+  /**
+   * Everything the HUD and the passport display is derived from this one
+   * object. A year window reuses the home bases derived from the whole log —
+   * re-deriving them from a single year starts closing trips at holiday
+   * airports that happen to dominate that year's dwell time.
+   */
+  const passport = useMemo(() => {
+    if (!fullPassport) return null;
+    if (selectedYear === 'all') return fullPassport;
+    return buildPassport(passportInput(filteredFlights, reference, fullPassport.homeBases));
+  }, [fullPassport, filteredFlights, reference, selectedYear]);
 
   useEffect(() => {
-    if (!globeRef.current) return;
+    if (!globeReady || !globeRef.current) return;
     globeRef.current.arcsData(filteredFlights);
-  }, [filteredFlights]);
+  }, [filteredFlights, globeReady]);
+
+  const visitedCountries = useMemo(() => {
+    if (!passport) return [];
+    return passport.stamps.map(stamp => ({
+      code: stamp.country,
+      name: stamp.name,
+      flag: stamp.flag,
+      home: stamp.home,
+      detail: `${stamp.entries} arrival${stamp.entries === 1 ? '' : 's'} · ${stamp.airports.map(c => c.toUpperCase()).join(', ')}`
+    }));
+  }, [passport]);
+
+  useEffect(() => {
+    if (!globeReady) return;
+    const globeInstance = globeRef.current;
+    if (!globeInstance) return;
+
+    if (!showCountries) {
+      globeInstance.polygonsData([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function applyCountryLayer() {
+      if (!countryFeaturesRef.current) {
+        try {
+          const res = await fetch(COUNTRIES_GEOJSON);
+          if (!res.ok) throw new Error(`countries geometry: ${res.status}`);
+          const geo = await res.json();
+          countryFeaturesRef.current = geo.features || [];
+        } catch (err) {
+          console.error(err);
+          if (!cancelled) setCountriesError(err instanceof Error ? err.message : 'Unknown error');
+          return;
+        }
+      }
+
+      if (cancelled || !globeRef.current) return;
+
+      const byIso = new Map(visitedCountries.map(c => [c.code, c]));
+      const features = [];
+      for (const feature of countryFeaturesRef.current) {
+        const iso = String(feature.properties?.ISO_A2 || '').toLowerCase();
+        const visit = byIso.get(iso);
+        if (!visit) continue;
+        features.push({
+          ...feature,
+          __home: visit.home,
+          __name: visit.name,
+          __flag: visit.flag,
+          __detail: visit.detail
+        });
+      }
+
+      setCountriesError(null);
+      globeRef.current.polygonsData(features);
+    }
+
+    applyCountryLayer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showCountries, visitedCountries, globeReady]);
+
+  const focusAirport = useCallback(code => {
+    const airport = airportIndexRef.current?.get(code);
+    const globeInstance = globeRef.current;
+    if (!airport || !globeInstance) return;
+
+    setPassportOpen(false);
+    globeInstance.pointOfView({ lat: airport.lat, lng: airport.lng, altitude: 1.1 }, 1200);
+    globeInstance.ringsData([{ lat: airport.lat, lng: airport.lng }]);
+
+    clearTimeout(ringTimeoutRef.current);
+    ringTimeoutRef.current = setTimeout(() => {
+      ringTimeoutRef.current = null;
+      if (globeRef.current) globeRef.current.ringsData([]);
+    }, FOCUS_RING_MS);
+  }, []);
 
   const legend = useMemo(() => {
     if (!yearColor || legendYears.length === 0) return null;
     return legendYears.map(year => ({ year, color: yearColor(year) }));
   }, [legendYears, yearColor]);
 
+  const yearLabel = selectedYear === 'all' ? 'All years' : selectedYear;
+
   const statCards = useMemo(() => {
-    if (!stats) return [];
+    if (!passport) return [];
+    const { totals, airports, records } = passport;
+    const busiestRoute = records.find(r => r.id === 'busiestRoute');
     const airportsDetailParts = [];
-    if (stats.topAirports.length > 0) {
-      airportsDetailParts.push(`Top: ${stats.topAirports.join(', ')}`);
+    const top = airports.slice(0, 5).map(a => `${a.code.toUpperCase()} (${a.visits})`);
+    if (top.length > 0) {
+      airportsDetailParts.push(`Top: ${top.join(', ')}`);
     }
-    if (stats.topRoute) {
-      airportsDetailParts.push(`Busiest Route: ${stats.topRoute.a} ↔ ${stats.topRoute.b} (${stats.topRoute.count})`);
+    if (busiestRoute && busiestRoute.value !== '—') {
+      airportsDetailParts.push(`Busiest Route: ${busiestRoute.value} (${busiestRoute.detail})`);
     }
     const airportsDetail =
       airportsDetailParts.length === 0
@@ -345,23 +426,32 @@ export default function FlightsGlobe() {
       {
         id: 'flightSummary',
         label: 'Flight Summary',
-        value: `${stats.totalFlights.toLocaleString()} flights`,
-        detail: `${stats.totalHours.toFixed(1)} hours`
+        value: `${totals.flights.toLocaleString()} flights`,
+        detail: `${totals.hoursInAir.toFixed(1)} hours`
       },
       {
         id: 'totalDistance',
         label: 'Distance Traveled',
-        value: `${stats.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`,
-        detail: `Earth circuits: ${stats.tripsAroundWorld.toFixed(2)}`
+        value: `${totals.distanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`,
+        detail: `Earth circuits: ${totals.earthCircuits.toFixed(2)}`
       },
       {
         id: 'uniqueAirports',
         label: 'Airports Visited',
-        value: stats.uniqueAirports.toString(),
+        value: totals.airports.toString(),
         detail: airportsDetail
+      },
+      {
+        id: 'passportCoverage',
+        label: 'Passport',
+        value: `${totals.countries} countries`,
+        detail: [
+          `${totals.continents} continents · ${totals.worldPercent.toFixed(1)}% of the world`,
+          `${totals.trips} trips · ${totals.daysAbroad} days abroad`
+        ]
       }
     ];
-  }, [stats]);
+  }, [passport]);
 
   return (
     <>
@@ -391,6 +481,19 @@ export default function FlightsGlobe() {
               <span className="hud-status-metric">active traces</span>
             </div>
             <div className="hud-divider" />
+            <button
+              type="button"
+              className="hud-passport-button"
+              onClick={() => setPassportOpen(true)}
+              disabled={!passport}
+            >
+              <span className="hud-passport-glyph">✦</span>
+              <span className="hud-passport-text">Open passport</span>
+              <span className="hud-passport-meta">
+                {passport ? `${passport.totals.countries} stamps` : 'loading'}
+              </span>
+            </button>
+            <div className="hud-divider" />
             <div className="hud-controls">
               <label className="hud-toggle">
                 <input
@@ -407,6 +510,14 @@ export default function FlightsGlobe() {
                   onChange={event => setStaticPaths(event.target.checked)}
                 />
                 <span className="hud-toggle-label">Static flight paths</span>
+              </label>
+              <label className="hud-toggle">
+                <input
+                  type="checkbox"
+                  checked={showCountries}
+                  onChange={event => setShowCountries(event.target.checked)}
+                />
+                <span className="hud-toggle-label">Visited countries</span>
               </label>
               {legendYears.length > 0 && (
                 <label className="hud-select">
@@ -425,7 +536,7 @@ export default function FlightsGlobe() {
             <div className="hud-divider" />
             {error ? (
               <div className="hud-error">Unable to load flight data: {error}</div>
-            ) : stats ? (
+            ) : passport ? (
               <div className="hud-stats">
                 {statCards.map(card => (
                   <div key={card.id} className="hud-stat-card">
@@ -443,6 +554,9 @@ export default function FlightsGlobe() {
               </div>
             ) : (
               <div className="hud-loading">Loading flight data…</div>
+            )}
+            {countriesError && (
+              <div className="hud-error">Country outlines unavailable: {countriesError}</div>
             )}
             {legend && legend.length > 0 && (
               <div className="hud-legend">
@@ -462,6 +576,13 @@ export default function FlightsGlobe() {
           <div className="hud-collapsed-hint">Dashboard hidden</div>
         )}
       </div>
+      <Passport
+        passport={passport}
+        yearLabel={yearLabel}
+        open={passportOpen}
+        onClose={() => setPassportOpen(false)}
+        onFocusAirport={focusAirport}
+      />
     </>
   );
 }

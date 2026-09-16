@@ -1,0 +1,62 @@
+{
+  "7c": {
+    "country": "kr",
+    "name": "Jeju Air"
+  },
+  "aa": {
+    "country": "us",
+    "name": "American Airlines"
+  },
+  "ac": {
+    "country": "ca",
+    "name": "Air Canada"
+  },
+  "b6": {
+    "country": "us",
+    "name": "JetBlue"
+  },
+  "ba": {
+    "country": "gb",
+    "name": "British Airways"
+  },
+  "dl": {
+    "country": "us",
+    "name": "Delta Air Lines"
+  },
+  "ek": {
+    "country": "ae",
+    "name": "Emirates"
+  },
+  "f9": {
+    "country": "us",
+    "name": "Frontier Airlines"
+  },
+  "ha": {
+    "country": "us",
+    "name": "Hawaiian Airlines"
+  },
+  "jl": {
+    "country": "jp",
+    "name": "Japan Airlines"
+  },
+  "nh": {
+    "country": "jp",
+    "name": "ANA"
+  },
+  "qa": {
+    "country": "qa",
+    "name": "Qatar Airways"
+  },
+  "tk": {
+    "country": "tr",
+    "name": "Turkish Airlines"
+  },
+  "ua": {
+    "country": "us",
+    "name": "United Airlines"
+  },
+  "wn": {
+    "country": "us",
+    "name": "Southwest Airlines"
+  }
+}

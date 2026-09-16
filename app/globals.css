@@ -298,6 +298,67 @@ body::before {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.hud-passport-button {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  color: #e8b959;
+  background: linear-gradient(135deg, rgba(232, 185, 89, 0.14), rgba(232, 185, 89, 0.03));
+  border: 1px solid rgba(232, 185, 89, 0.45);
+  transition: all 0.2s;
+}
+
+.hud-passport-button:hover:not(:disabled) {
+  background: rgba(232, 185, 89, 0.9);
+  color: #0a0a0a;
+  border-color: rgba(232, 185, 89, 0.9);
+}
+
+.hud-passport-button:disabled {
+  opacity: 0.4;
+  cursor: progress;
+}
+
+.hud-passport-glyph {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.hud-passport-text {
+  flex: 1;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-family: var(--font-orbitron), sans-serif;
+}
+
+.hud-passport-meta {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.hud-loading,
+.hud-error {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #888;
+}
+
+.hud-error {
+  margin-top: 12px;
+  color: #e2725b;
+}
+
 @media (max-width: 700px) {
   .hud {
     top: auto;

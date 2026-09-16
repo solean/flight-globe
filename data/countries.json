@@ -1,0 +1,46 @@
+{
+  "ae": {
+    "continent": "as",
+    "name": "United Arab Emirates"
+  },
+  "ca": {
+    "continent": "na",
+    "name": "Canada"
+  },
+  "dk": {
+    "continent": "eu",
+    "name": "Denmark"
+  },
+  "gb": {
+    "continent": "eu",
+    "name": "United Kingdom"
+  },
+  "jp": {
+    "continent": "as",
+    "name": "Japan"
+  },
+  "kg": {
+    "continent": "as",
+    "name": "Kyrgyzstan"
+  },
+  "kr": {
+    "continent": "as",
+    "name": "South Korea"
+  },
+  "qa": {
+    "continent": "as",
+    "name": "Qatar"
+  },
+  "th": {
+    "continent": "as",
+    "name": "Thailand"
+  },
+  "tr": {
+    "continent": "as",
+    "name": "Türkiye"
+  },
+  "us": {
+    "continent": "na",
+    "name": "United States"
+  }
+}
