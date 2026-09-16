@@ -1,11 +1,8 @@
 node_modules/
 .next/
-.env.local
 
-# Private flight log. Source of truth is the private data repo
-# (FLIGHT_DATA_REPO); these are a local cache plus the generated bundle.
-data/flights.csv
-data/airports.json
+# Generated from data/flights.csv + data/airports.json at predev/prebuild.
 data/flights.json
+
 .vercel
 .env*

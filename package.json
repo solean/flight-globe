@@ -10,8 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "data:build": "node scripts/build-data.mjs",
-    "data:pull": "node scripts/data-sync.mjs pull",
-    "data:push": "node scripts/data-sync.mjs push"
+    "data:fmt": "node scripts/build-data.mjs --fmt"
   },
   "dependencies": {
     "d3": "^7.8.5",
