@@ -22,15 +22,34 @@ time.
 ## Passport
 
 `lib/passport.js` turns the log into the passport shown over the globe: country
-stamps with first/last visit, continent coverage, trips (segmented by
-return-to-origin, so ground legs inside a trip don't split it), carrier shares,
-a month heatmap, per-year rollups, records (longest/shortest flight, longest
-gap, busiest month/route/airport) and the extreme points reached. `lib/geo.js`
-holds the great-circle math and the block-time estimate
-(`km / 830 km/h + 0.5 h`). Everything respects the HUD's year filter.
+stamps with first/last visit, continent coverage, trips, carrier shares, a month
+heatmap, per-year rollups, records (longest/shortest flight, longest gap,
+busiest month/route/airport) and the extreme points reached. `lib/geo.js` holds
+the great-circle math and the block-time estimate (`km / 830 km/h + 0.5 h`).
+Everything respects the HUD's year filter.
 
-The `Visited countries` toggle shades those countries on the globe using Natural
-Earth outlines, matched by `ISO_A2`.
+Trips are segmented by walking the legs in order and closing a trip when it
+lands at a home base (or back where it started) and a real break follows, or
+when the gap to the next leg is three weeks or more. Home bases are the airports
+holding at least 10% of all *dwell days* — days between arriving somewhere and
+departing it again — which is what separates BUF/PHX from a two-week holiday
+airport. A filtered year reuses the home bases derived from the whole log, so a
+single year cannot promote a holiday airport into a base.
+
+## Globe layers
+
+- **Visited countries** — shades the visited countries with Natural Earth
+  outlines, matched by `ISO_A2`; the home country is gold.
+- **Airport spikes** — each airport becomes a spike whose height and colour
+  track how often it has been used.
+- **Day / night** — `lib/solar.js` computes the subsolar point from NOAA's
+  low-precision solar model (worst declination error 0.04° over 2026), and the
+  globe gets a hemisphere cap centred on the antisolar point plus the terminator
+  drawn as a great circle. No shader: the cap *is* the night side.
+- **Colour by** — arcs coloured by year, airline (hues sampled around the wheel,
+  since 15 carriers exhaust a categorical scheme) or arrival continent.
+- **Fly on globe** — the passport's trips page isolates one trip's legs and
+  frames them on their spherical centroid.
 
 ## Getting started
 

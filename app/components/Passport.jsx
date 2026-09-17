@@ -104,8 +104,9 @@ function heatLevel(flights, max) {
  * @param {boolean} props.open
  * @param {() => void} props.onClose
  * @param {(code: string) => void} [props.onFocusAirport] Optional globe fly-to callback.
+ * @param {(trip: Object) => void} [props.onFocusTrip] Optional globe trip-isolation callback.
  */
-export default function Passport({ passport, yearLabel, open, onClose, onFocusAirport }) {
+export default function Passport({ passport, yearLabel, open, onClose, onFocusAirport, onFocusTrip }) {
   const [page, setPage] = useState('stamps');
   const dialogRef = useRef(null);
 
@@ -119,6 +120,14 @@ export default function Passport({ passport, yearLabel, open, onClose, onFocusAi
       if (code && typeof onFocusAirport === 'function') onFocusAirport(code);
     },
     [onFocusAirport]
+  );
+
+  const focusTrip = useCallback(
+    /** @param {Object} trip */
+    trip => {
+      if (trip && typeof onFocusTrip === 'function') onFocusTrip(trip);
+    },
+    [onFocusTrip]
   );
 
   const handleBackdropClick = useCallback(
@@ -165,21 +174,21 @@ export default function Passport({ passport, yearLabel, open, onClose, onFocusAi
   const flagByCountry = useMemo(() => {
     /** @type {Record<string, string>} */
     const map = {};
-    for (const stamp of stamps) map[stamp.country] = stamp.flag;
+    for (const stamp of passport?.stamps ?? []) map[stamp.country] = stamp.flag;
     return map;
-  }, [stamps]);
+  }, [passport]);
 
   /** Deterministic ink + rotation per stamp, computed once per stamp list. */
   const stampStyles = useMemo(
     () =>
-      stamps.map(stamp => {
+      (passport?.stamps ?? []).map(stamp => {
         const hash = hashString(stamp.country || stamp.name || '');
         return {
           transform: `rotate(${((hash % 101) / 20 - 2.5).toFixed(1)}deg)`,
           '--passport-ink': STAMP_INKS[hash % STAMP_INKS.length]
         };
       }),
-    [stamps]
+    [passport]
   );
 
   /** `${year}-${monthIndex}` -> month cell, plus the busiest month for heat scaling. */
@@ -187,12 +196,12 @@ export default function Passport({ passport, yearLabel, open, onClose, onFocusAi
     /** @type {Record<string, Object>} */
     const byCell = {};
     let max = 0;
-    for (const cell of calendar) {
+    for (const cell of passport?.calendar ?? []) {
       byCell[`${cell.year}-${cell.monthIndex}`] = cell;
       if (cell.flights > max) max = cell.flights;
     }
     return { byCell, max };
-  }, [calendar]);
+  }, [passport]);
 
   if (!open) return null;
 
@@ -370,6 +379,14 @@ export default function Passport({ passport, yearLabel, open, onClose, onFocusAi
                             <span className="passport-trip-dates">
                               {trip.start} → {trip.end}
                             </span>
+                            <button
+                              type="button"
+                              className="passport-trip-fly"
+                              onClick={() => focusTrip(trip)}
+                              aria-label={`Show ${trip.focus?.city ?? 'this trip'} on the globe`}
+                            >
+                              Fly on globe
+                            </button>
                           </div>
                           <div className="passport-trip-stats">
                             <span className="passport-trip-stat">{pluralize(trip.days, 'day')}</span>

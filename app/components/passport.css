@@ -827,3 +827,24 @@
     grid-template-columns: 46px repeat(12, minmax(0, 1fr));
   }
 }
+
+.passport-trip-fly {
+  appearance: none;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: var(--font-orbitron), sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #69b3a2;
+  background: transparent;
+  border: 1px solid rgba(105, 179, 162, 0.45);
+  transition: all 0.18s ease;
+}
+
+.passport-trip-fly:hover,
+.passport-trip-fly:focus-visible {
+  color: #06100d;
+  background: #69b3a2;
+  outline: none;
+}

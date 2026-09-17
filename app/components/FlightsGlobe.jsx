@@ -2,14 +2,37 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { EARTH_CIRCUMFERENCE_KM, arcAltitude, greatCircleKm } from '../../lib/geo';
+import { arcAltitude, centroid, greatCircleKm } from '../../lib/geo';
 import { buildPassport } from '../../lib/passport';
+import { antisolarPoint, subsolarPoint, terminatorRing } from '../../lib/solar';
 import Passport from './Passport';
 
 const REGULAR_GLOBE_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
 const BLACK_GLOBE_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-dark.jpg';
 const COUNTRIES_GEOJSON = 'https://unpkg.com/globe.gl/example/datasets/ne_110m_admin_0_countries.geojson';
 const FOCUS_RING_MS = 6000;
+/** The terminator only needs to move a quarter of a degree at a time. */
+const TERMINATOR_REFRESH_MS = 60000;
+/** globe.gl works in units of one globe radius; the night cap sits just above the surface. */
+const NIGHT_CAP_ALTITUDE = 0.005;
+const ARC_STROKE = 0.75;
+const UNKNOWN_COLOR = '#8a8a8a';
+
+const COLOR_MODES = [
+  { id: 'year', label: 'Year' },
+  { id: 'carrier', label: 'Airline' },
+  { id: 'continent', label: 'Continent' }
+];
+
+const CONTINENT_COLORS = {
+  af: '#e2725b',
+  an: '#cfd8dc',
+  as: '#e8b959',
+  eu: '#8f7fd4',
+  na: '#69b3a2',
+  oc: '#5f9ed1',
+  sa: '#4f9d69'
+};
 
 /**
  * @typedef {Object} Airport
@@ -99,6 +122,8 @@ export default function FlightsGlobe() {
   const airportIndexRef = useRef(null);
   const countryFeaturesRef = useRef(null);
   const ringTimeoutRef = useRef(null);
+  const nightCapRef = useRef(null);
+  const arcColorRef = useRef(() => UNKNOWN_COLOR);
   const [flights, setFlights] = useState(null);
   const [reference, setReference] = useState({ airports: [], countries: [], airlines: [] });
   const [selectedYear, setSelectedYear] = useState('all');
@@ -107,8 +132,12 @@ export default function FlightsGlobe() {
   const [error, setError] = useState(null);
   const [staticPaths, setStaticPaths] = useState(false);
   const [blackGlobe, setBlackGlobe] = useState(false);
-  const [showCountries, setShowCountries] = useState(false);
+  const [showCountries, setShowCountries] = useState(true);
   const [countriesError, setCountriesError] = useState(null);
+  const [showSpikes, setShowSpikes] = useState(true);
+  const [showTerminator, setShowTerminator] = useState(false);
+  const [colorMode, setColorMode] = useState('year');
+  const [focusTrip, setFocusTrip] = useState(null);
   const [hudExpanded, setHudExpanded] = useState(true);
   const [passportOpen, setPassportOpen] = useState(false);
   const [globeReady, setGlobeReady] = useState(false);
@@ -118,7 +147,6 @@ export default function FlightsGlobe() {
   useEffect(() => {
     let mounted = true;
     const containerEl = containerRef.current;
-
     async function init() {
       try {
         const [airportsRes, flightsRes, countriesRes, airlinesRes] = await Promise.all([
@@ -154,6 +182,7 @@ export default function FlightsGlobe() {
         airportIndexRef.current = airportMap;
 
         const [countriesRaw, airlinesRaw] = await Promise.all([countriesRes.json(), airlinesRes.json()]);
+        const continentByCountry = new Map(countriesRaw.map(c => [c.code, c.continent]));
 
         const flightsRaw = await flightsRes.json();
         const flights = flightsRaw
@@ -173,8 +202,11 @@ export default function FlightsGlobe() {
               date: dateObj,
               src: row.src,
               dest: row.dest,
+              srcCity: src.city,
+              destCity: dest.city,
               flightno: row.flightno ?? null,
               carrier: row.carrier ?? null,
+              continent: continentByCountry.get(dest.country) ?? null,
               startLat: src.lat,
               startLng: src.lng,
               endLat: dest.lat,
@@ -212,18 +244,28 @@ export default function FlightsGlobe() {
           .globeImageUrl(blackGlobeRef.current ? BLACK_GLOBE_TEXTURE : REGULAR_GLOBE_TEXTURE)
           .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
           .backgroundColor('#000000')
-          .arcStroke(0.75)
+          .arcStroke(ARC_STROKE)
           .arcAltitude(d => d.altitude)
+          .arcColor(d => arcColorRef.current(d))
           .arcLabel(d => `${d.src.toUpperCase()} → ${d.dest.toUpperCase()} (${d.flightno || '—'})\n${d.dateStr}`)
-          .pointAltitude(0.01)
-          .pointRadius(0.1)
-          .pointColor(() => '#69b3a2')
-          .pointLabel(d => `${d.code.toUpperCase()} — ${d.name}`)
+          .pointAltitude(d => d.altitude ?? 0.01)
+          .pointRadius(d => d.radius ?? 0.1)
+          .pointColor(d => d.color ?? '#69b3a2')
+          .pointLabel(d => `${d.code.toUpperCase()} — ${d.name}${d.detail ? `\n${d.detail}` : ''}`)
           .polygonAltitude(0.007)
           .polygonSideColor(() => 'rgba(105, 179, 162, 0.12)')
           .polygonStrokeColor(d => (d.__home ? '#e8b959' : '#69b3a2'))
           .polygonCapColor(d => (d.__home ? 'rgba(232, 185, 89, 0.22)' : 'rgba(105, 179, 162, 0.26)'))
           .polygonLabel(d => `${d.__flag} ${d.__name}\n${d.__detail}`)
+          .pathColor(() => ['rgba(255, 215, 106, 0.05)', 'rgba(255, 215, 106, 0.85)'])
+          .pathStroke(1.1)
+          .pathTransitionDuration(0)
+          .pathLabel('Day / night terminator')
+          .labelText(d => d.text)
+          .labelSize(d => d.size ?? 1)
+          .labelDotRadius(0.45)
+          .labelColor(() => '#ffd76a')
+          .labelResolution(2)
           .ringColor(() => t => `rgba(232, 185, 89, ${1 - t})`)
           .ringMaxRadius(5)
           .ringPropagationSpeed(2.4)
@@ -237,10 +279,8 @@ export default function FlightsGlobe() {
           globeInstance.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.8 }, 0);
         }
 
-        globeInstance
-          .arcColor(d => (d.year && scale.domain().includes(d.year) ? scale(d.year) : '#999'))
-          .arcsData(flights)
-          .pointsData(airportsRaw);
+        // Arc colours, point spikes and the terminator are owned by the layer
+        // effects below, which run as soon as `globeReady` flips.
 
         setGlobeReady(true);
       } catch (err) {
@@ -259,6 +299,13 @@ export default function FlightsGlobe() {
       setGlobeReady(false);
       clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = null;
+      const nightCap = nightCapRef.current;
+      if (nightCap) {
+        nightCap.parent?.remove(nightCap);
+        nightCap.geometry.dispose();
+        nightCap.material.dispose();
+        nightCapRef.current = null;
+      }
       if (containerEl) {
         containerEl.innerHTML = '';
       }
@@ -311,10 +358,83 @@ export default function FlightsGlobe() {
     return buildPassport(passportInput(filteredFlights, reference, fullPassport.homeBases));
   }, [fullPassport, filteredFlights, reference, selectedYear]);
 
+  /** Trips are contiguous in time and never share a date, so the window is exact. */
+  const tripLegs = useMemo(() => {
+    if (!focusTrip) return [];
+    return filteredFlights.filter(f => f.dateStr >= focusTrip.start && f.dateStr <= focusTrip.end);
+  }, [focusTrip, filteredFlights]);
+
+  /** A focused trip narrows the arcs; otherwise the year window decides. */
+  const displayedFlights = useMemo(() => {
+    if (focusTrip) return tripLegs;
+    return filteredFlights;
+  }, [focusTrip, tripLegs, filteredFlights]);
+
+  /** `{ color(flight), legend: [{ key, label, title, color }], title }` for the active mode. */
+  const palette = useMemo(() => {
+    if (colorMode === 'carrier') {
+      const flown = new Map();
+      for (const f of filteredFlights) {
+        if (f.carrier) flown.set(f.carrier, (flown.get(f.carrier) || 0) + 1);
+      }
+      const codes = Array.from(flown.keys()).sort((a, b) => flown.get(b) - flown.get(a) || a.localeCompare(b));
+      // Sampled around the hue wheel rather than a categorical scheme: 15 flown
+      // carriers exhaust Tableau10 and start handing out greys.
+      const range = codes.map((_, index) => d3.interpolateSinebow((index / Math.max(1, codes.length)) % 1));
+      const scale = d3.scaleOrdinal().domain(codes).range(range);
+      const nameByCode = new Map(reference.airlines.map(a => [a.code, a.name]));
+      return {
+        title: 'Airline mapping',
+        color: f => (f.carrier && flown.has(f.carrier) ? scale(f.carrier) : UNKNOWN_COLOR),
+        legend: codes.map(code => ({
+          key: code,
+          label: code.toUpperCase(),
+          title: `${nameByCode.get(code) ?? code.toUpperCase()} — ${flown.get(code)} flights`,
+          color: scale(code)
+        }))
+      };
+    }
+
+    if (colorMode === 'continent') {
+      const present = new Map();
+      for (const f of filteredFlights) {
+        if (f.continent) present.set(f.continent, (present.get(f.continent) || 0) + 1);
+      }
+      const nameByContinent = new Map((passport?.continents ?? []).map(c => [c.code, c.name]));
+      const codes = Array.from(present.keys()).sort((a, b) => present.get(b) - present.get(a));
+      return {
+        title: 'Continent mapping',
+        color: f => CONTINENT_COLORS[f.continent] ?? UNKNOWN_COLOR,
+        legend: codes.map(code => ({
+          key: code,
+          label: nameByContinent.get(code) ?? code.toUpperCase(),
+          title: `${present.get(code)} arrivals`,
+          color: CONTINENT_COLORS[code] ?? UNKNOWN_COLOR
+        }))
+      };
+    }
+
+    return {
+      title: 'Year mapping',
+      color: f => (yearColor && f.year ? yearColor(f.year) : UNKNOWN_COLOR),
+      legend: legendYears.map(year => ({
+        key: year,
+        label: String(year),
+        title: `${year}`,
+        color: yearColor ? yearColor(year) : UNKNOWN_COLOR
+      }))
+    };
+  }, [colorMode, filteredFlights, reference, legendYears, yearColor, passport]);
+
+  useEffect(() => {
+    arcColorRef.current = f => palette.color(f);
+  }, [palette]);
+
   useEffect(() => {
     if (!globeReady || !globeRef.current) return;
-    globeRef.current.arcsData(filteredFlights);
-  }, [filteredFlights, globeReady]);
+    // A fresh array each time so globe.gl re-reads the colour accessor.
+    globeRef.current.arcsData(displayedFlights.slice());
+  }, [displayedFlights, palette, globeReady]);
 
   const visitedCountries = useMemo(() => {
     if (!passport) return [];
@@ -381,6 +501,118 @@ export default function FlightsGlobe() {
     };
   }, [showCountries, visitedCountries, globeReady]);
 
+  /** Airports as flat dots, or as spikes whose height and colour track visits. */
+  const pointLayer = useMemo(() => {
+    const stats = passport?.airports ?? [];
+    if (!showSpikes) {
+      return reference.airports.map(a => ({ ...a, altitude: 0.01, radius: 0.1, color: '#69b3a2' }));
+    }
+    const max = stats.reduce((peak, a) => (a.visits > peak ? a.visits : peak), 0) || 1;
+    const heat = d3.scaleSequential(d3.interpolateYlOrRd).domain([0, max]);
+    return stats.map(a => ({
+      code: a.code,
+      name: a.name,
+      lat: a.lat,
+      lng: a.lng,
+      altitude: 0.012 + 0.4 * (a.visits / max),
+      radius: 0.3,
+      color: heat(a.visits),
+      detail: `${a.visits} visit${a.visits === 1 ? '' : 's'} · ${a.departures} dep · ${a.arrivals} arr`
+    }));
+  }, [showSpikes, passport, reference]);
+
+  useEffect(() => {
+    if (!globeReady || !globeRef.current) return;
+    globeRef.current.pointsData(pointLayer);
+  }, [pointLayer, globeReady]);
+
+  useEffect(() => {
+    if (!globeReady) return undefined;
+    const globeInstance = globeRef.current;
+    if (!globeInstance) return undefined;
+
+    if (!showTerminator) {
+      const cap = nightCapRef.current;
+      cap?.parent?.remove(cap);
+      globeInstance.pathsData([]);
+      globeInstance.labelsData([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let timer = null;
+
+    async function applyTerminator() {
+      const THREE = await import('three');
+      if (cancelled || !globeRef.current) return;
+      const globe = globeRef.current;
+
+      if (!nightCapRef.current) {
+        // A hemisphere cap centred on the antisolar point *is* the night side,
+        // so the shadow needs no shader — just the right orientation.
+        const radius = 100 * (1 + NIGHT_CAP_ALTITUDE);
+        nightCapRef.current = new THREE.Mesh(
+          new THREE.SphereGeometry(radius, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2),
+          new THREE.MeshBasicMaterial({
+            color: 0x02040c,
+            transparent: true,
+            opacity: 0.62,
+            depthWrite: false,
+            side: THREE.DoubleSide
+          })
+        );
+      }
+
+      const cap = nightCapRef.current;
+      if (cap.parent !== globe.scene()) globe.scene().add(cap);
+
+      const up = new THREE.Vector3(0, 1, 0);
+      const axis = new THREE.Vector3();
+
+      const update = () => {
+        if (!globeRef.current) return;
+        const now = new Date();
+        const night = antisolarPoint(now);
+        const coords = globeRef.current.getCoords(night.lat, night.lng, 0);
+        axis.set(coords.x, coords.y, coords.z).normalize();
+        cap.quaternion.setFromUnitVectors(up, axis);
+
+        const sun = subsolarPoint(now);
+        globeRef.current
+          .pathsData([terminatorRing(now, 180).map(p => [p.lat, p.lng, 0.012])])
+          .labelsData([{ lat: sun.lat, lng: sun.lng, text: 'subsolar', size: 0.9 }]);
+      };
+
+      update();
+      timer = setInterval(update, TERMINATOR_REFRESH_MS);
+    }
+
+    applyTerminator();
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      const cap = nightCapRef.current;
+      cap?.parent?.remove(cap);
+      globeRef.current?.pathsData([]).labelsData([]);
+    };
+  }, [showTerminator, globeReady]);
+
+  const focusTripOnGlobe = useCallback(trip => {
+    if (!trip) return;
+    setPassportOpen(false);
+    setFocusTrip({ id: trip.id, start: trip.start, end: trip.end, label: trip.focus?.city ?? trip.start });
+
+    const index = airportIndexRef.current;
+    const globeInstance = globeRef.current;
+    if (!index || !globeInstance) return;
+    const stops = (trip.path ?? []).map(code => index.get(code)).filter(Boolean);
+    if (stops.length === 0) return;
+    const centre = centroid(stops) ?? stops[0];
+    const spread = stops.reduce((peak, stop) => Math.max(peak, greatCircleKm(centre, stop)), 0);
+    globeInstance.pointOfView({ lat: centre.lat, lng: centre.lng, altitude: Math.min(2.6, 0.75 + spread / 3600) }, 1400);
+  }, []);
+
   const focusAirport = useCallback(code => {
     const airport = airportIndexRef.current?.get(code);
     const globeInstance = globeRef.current;
@@ -397,10 +629,7 @@ export default function FlightsGlobe() {
     }, FOCUS_RING_MS);
   }, []);
 
-  const legend = useMemo(() => {
-    if (!yearColor || legendYears.length === 0) return null;
-    return legendYears.map(year => ({ year, color: yearColor(year) }));
-  }, [legendYears, yearColor]);
+  const legend = palette.legend;
 
   const yearLabel = selectedYear === 'all' ? 'All years' : selectedYear;
 
@@ -478,7 +707,7 @@ export default function FlightsGlobe() {
             <div className="hud-status-row">
               <span className="hud-status-tag">sync</span>
               <span className="hud-status-value">{filteredFlights.length.toString().padStart(3, '0')}</span>
-              <span className="hud-status-metric">active traces</span>
+              <span className="hud-status-metric">flights</span>
             </div>
             <div className="hud-divider" />
             <button
@@ -493,6 +722,17 @@ export default function FlightsGlobe() {
                 {passport ? `${passport.totals.countries} stamps` : 'loading'}
               </span>
             </button>
+            {focusTrip && (
+              <button type="button" className="hud-focus-chip" onClick={() => setFocusTrip(null)}>
+                <span className="hud-focus-label">Trip · {focusTrip.label}</span>
+                <span className="hud-focus-dates">
+                  {focusTrip.start} → {focusTrip.end}
+                </span>
+                <span className="hud-focus-clear" aria-hidden="true">
+                  ✕
+                </span>
+              </button>
+            )}
             <div className="hud-divider" />
             <div className="hud-controls">
               <label className="hud-toggle">
@@ -518,6 +758,32 @@ export default function FlightsGlobe() {
                   onChange={event => setShowCountries(event.target.checked)}
                 />
                 <span className="hud-toggle-label">Visited countries</span>
+              </label>
+              <label className="hud-toggle">
+                <input
+                  type="checkbox"
+                  checked={showSpikes}
+                  onChange={event => setShowSpikes(event.target.checked)}
+                />
+                <span className="hud-toggle-label">Airport spikes</span>
+              </label>
+              <label className="hud-toggle">
+                <input
+                  type="checkbox"
+                  checked={showTerminator}
+                  onChange={event => setShowTerminator(event.target.checked)}
+                />
+                <span className="hud-toggle-label">Day / night</span>
+              </label>
+              <label className="hud-select">
+                <span className="hud-select-label">Colour by</span>
+                <select value={colorMode} onChange={event => setColorMode(event.target.value)}>
+                  {COLOR_MODES.map(mode => (
+                    <option key={mode.id} value={mode.id}>
+                      {mode.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               {legendYears.length > 0 && (
                 <label className="hud-select">
@@ -558,14 +824,14 @@ export default function FlightsGlobe() {
             {countriesError && (
               <div className="hud-error">Country outlines unavailable: {countriesError}</div>
             )}
-            {legend && legend.length > 0 && (
+            {legend.length > 0 && (
               <div className="hud-legend">
-                <div className="hud-legend-title">Spectral mapping</div>
+                <div className="hud-legend-title">{palette.title}</div>
                 <div className="hud-legend-items">
                   {legend.map(item => (
-                    <span key={item.year} className="hud-legend-item">
+                    <span key={item.key} className="hud-legend-item" title={item.title}>
                       <span className="hud-legend-swatch" style={{ background: item.color }} />
-                      <span>{item.year}</span>
+                      <span>{item.label}</span>
                     </span>
                   ))}
                 </div>
@@ -582,6 +848,7 @@ export default function FlightsGlobe() {
         open={passportOpen}
         onClose={() => setPassportOpen(false)}
         onFocusAirport={focusAirport}
+        onFocusTrip={focusTripOnGlobe}
       />
     </>
   );
