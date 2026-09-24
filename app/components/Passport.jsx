@@ -21,8 +21,11 @@ const PAGES = [
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** Ink colours for the rubber stamps; index derived from the country code. */
-const STAMP_INKS = ['#69b3a2', '#c4544b', '#5f7fbf', '#c9a227', '#9b6bbf', '#4f9d69'];
+/**
+ * Inspector inks, matching the pads real immigration desks use: navy, ink
+ * black-green, violet, oxide red, teal, black. Index from the country code.
+ */
+const STAMP_INKS = ['#1f3c6d', '#2b4a3c', '#473068', '#8a382e', '#1b5867', '#2f3236'];
 
 const NO_FRACTION = { maximumFractionDigits: 0 };
 
@@ -81,6 +84,19 @@ function formatHours(value) {
  */
 function formatPercent(value) {
   return `${Number(value || 0).toFixed(1)}%`;
+}
+
+/**
+ * `2023-09-29` -> `29.SEP.2023`, the day-dot-month-dot-year an inspector's
+ * date wheel actually prints.
+ * @param {string} value ISO `YYYY-MM-DD`.
+ * @returns {string}
+ */
+function formatStampDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+  if (!match) return '--.---.----';
+  const month = MONTH_LABELS[Number(match[2]) - 1];
+  return `${match[3]}.${(month || '---').toUpperCase()}.${match[1]}`;
 }
 
 /**
@@ -178,14 +194,19 @@ export default function Passport({ passport, yearLabel, open, onClose, onFocusAi
     return map;
   }, [passport]);
 
-  /** Deterministic ink + rotation per stamp, computed once per stamp list. */
+  /**
+   * Deterministic ink, rotation and worn-pad hot spot per stamp. The rotation
+   * rides the ink layer, not the page tile, so the paper stays square.
+   */
   const stampStyles = useMemo(
     () =>
       (passport?.stamps ?? []).map(stamp => {
         const hash = hashString(stamp.country || stamp.name || '');
         return {
-          transform: `rotate(${((hash % 101) / 20 - 2.5).toFixed(1)}deg)`,
-          '--passport-ink': STAMP_INKS[hash % STAMP_INKS.length]
+          '--stamp-rotate': `${((hash % 101) / 16 - 3.1).toFixed(1)}deg`,
+          '--stamp-ink': STAMP_INKS[hash % STAMP_INKS.length],
+          '--stamp-wear-x': `${12 + (hash % 9) * 9}%`,
+          '--stamp-wear-y': `${10 + (hash % 5) * 18}%`
         };
       }),
     [passport]
@@ -316,33 +337,72 @@ export default function Passport({ passport, yearLabel, open, onClose, onFocusAi
                     <p className="passport-empty">No countries stamped in this window.</p>
                   ) : (
                     <div className="passport-stamp-grid">
-                      {stamps.map((stamp, index) => (
-                        <button
-                          key={stamp.country}
-                          type="button"
-                          className={`passport-stamp${stamp.home ? ' is-home' : ''}`}
-                          style={stampStyles[index]}
-                          title={(stamp.cities ?? []).join(' · ') || stamp.name}
-                          onClick={() => focusAirport((stamp.airports ?? [])[0])}
-                        >
-                          <span className="passport-stamp-flag" aria-hidden="true">
-                            {stamp.flag}
-                          </span>
-                          <span className="passport-stamp-name">{stamp.name}</span>
-                          <span className="passport-stamp-continent">{stamp.continentName}</span>
-                          <span className="passport-stamp-codes">
-                            {(stamp.airports ?? []).map(code => code.toUpperCase()).join(' · ') || '—'}
-                          </span>
-                          <span className="passport-stamp-dates">
-                            {stamp.firstVisit} → {stamp.lastVisit}
-                          </span>
-                          <span className="passport-stamp-count">
-                            {pluralize(stamp.entries, 'entry', 'entries')} · {pluralize(stamp.legs, 'leg')}
-                          </span>
-                          <span className="passport-stamp-distance">{formatKm(stamp.distanceKm)}</span>
-                          {stamp.home && <span className="passport-stamp-badge">Home</span>}
-                        </button>
-                      ))}
+                      {stamps.map((stamp, index) => {
+                        const codes = (stamp.airports ?? []).map(code => code.toUpperCase());
+                        const extraCodes = codes.slice(1, 9);
+                        const hiddenCodes = Math.max(codes.length - 9, 0);
+                        return (
+                          <button
+                            key={stamp.country}
+                            type="button"
+                            className={`passport-stamp${stamp.home ? ' is-home' : ''}`}
+                            style={stampStyles[index]}
+                            title={(stamp.cities ?? []).join(' · ') || stamp.name}
+                            onClick={() => focusAirport((stamp.airports ?? [])[0])}
+                          >
+                            <span className="passport-stamp-security" aria-hidden="true">
+                              {stamp.flag}
+                            </span>
+                            <span className="passport-stamp-ink">
+                              <span className="passport-stamp-authority">Immigration Inspector</span>
+                              <span className="passport-stamp-name">{stamp.name}</span>
+                              <span className="passport-stamp-title">
+                                {stamp.home ? 'Re-entry Permit' : 'Landing Permission'}
+                              </span>
+                              <span className="passport-stamp-rows">
+                                <span className="passport-stamp-row">
+                                  <span className="passport-stamp-label">Status</span>
+                                  <span className="passport-stamp-value">
+                                    {stamp.home ? 'Resident' : 'Temporary Visitor'}
+                                  </span>
+                                </span>
+                                <span className="passport-stamp-row">
+                                  <span className="passport-stamp-label">Date of permit</span>
+                                  <span className="passport-stamp-value">{formatStampDate(stamp.firstVisit)}</span>
+                                </span>
+                                <span className="passport-stamp-row">
+                                  <span className="passport-stamp-label">Until</span>
+                                  <span className="passport-stamp-value">{formatStampDate(stamp.lastVisit)}</span>
+                                </span>
+                                <span className="passport-stamp-row">
+                                  <span className="passport-stamp-label">Entries</span>
+                                  <span className="passport-stamp-value">{formatInt(stamp.entries)}</span>
+                                </span>
+                                <span className="passport-stamp-row">
+                                  <span className="passport-stamp-label">Air legs</span>
+                                  <span className="passport-stamp-value">{formatInt(stamp.legs)}</span>
+                                </span>
+                                <span className="passport-stamp-row">
+                                  <span className="passport-stamp-label">Distance</span>
+                                  <span className="passport-stamp-value">{formatKm(stamp.distanceKm)}</span>
+                                </span>
+                              </span>
+                              <span className="passport-stamp-foot">
+                                <span className="passport-stamp-port">
+                                  {codes[0] || '---'}({formatInt(stamp.entries)})
+                                </span>
+                                <span className="passport-stamp-region">{stamp.continentName}</span>
+                              </span>
+                              {extraCodes.length > 0 && (
+                                <span className="passport-stamp-codes">
+                                  {extraCodes.join(' · ')}
+                                  {hiddenCodes > 0 ? ` +${hiddenCodes}` : ''}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </section>

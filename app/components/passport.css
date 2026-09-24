@@ -280,104 +280,227 @@
 
 .passport-stamp-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
-  gap: 22px 18px;
+  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+  gap: 18px;
   padding: 8px 0 18px;
 }
 
+/*
+ * A stamp is two things, exactly as in the document: the visa page it sits on
+ * and the ink pressed onto it. The page owns the paper tone and the security
+ * guilloche; the ink layer owns the frame, the type and the rotation, which
+ * also keeps hover transforms off the rotated element.
+ */
 .passport-stamp {
-  --passport-ink: #69b3a2;
+  --stamp-ink: #1f3c6d;
+  --stamp-rotate: -1.4deg;
+  --stamp-wear-x: 22%;
+  --stamp-wear-y: 18%;
   position: relative;
+  isolation: isolate;
   appearance: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 16px 12px 14px;
-  border: 2px solid var(--passport-ink);
-  border-radius: 6px;
-  background: radial-gradient(ellipse at 30% 12%, rgba(255, 255, 255, 0.05), transparent 72%);
-  color: var(--passport-ink);
-  font-family: inherit;
-  text-align: center;
+  display: block;
+  padding: 15px 14px;
+  border: 1px solid rgba(58, 48, 30, 0.38);
+  border-radius: 2px;
+  background-color: #e9e2d0;
+  background-image:
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--stamp-ink) 22%, transparent) 0 0.5px, transparent 0.9px),
+    repeating-radial-gradient(circle at 84% 86%, transparent 0 6px, color-mix(in srgb, var(--stamp-ink) 9%, transparent) 6px 6.7px),
+    repeating-conic-gradient(from 8deg at 84% 86%, color-mix(in srgb, var(--stamp-ink) 5%, transparent) 0 1.4deg, transparent 1.4deg 14deg),
+    repeating-linear-gradient(60deg, color-mix(in srgb, var(--stamp-ink) 7%, transparent) 0 1px, transparent 1px 11px),
+    repeating-linear-gradient(-60deg, color-mix(in srgb, var(--stamp-ink) 7%, transparent) 0 1px, transparent 1px 11px),
+    radial-gradient(ellipse at 80% 84%, rgba(122, 96, 48, 0.18), transparent 62%),
+    linear-gradient(168deg, #f4eee0, #e2d9c4);
+  background-size: 5px 5px, auto, auto, auto, auto, auto, auto;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.45), inset 0 0 26px rgba(122, 96, 48, 0.14);
+  color: var(--stamp-ink);
+  font-family: 'Courier New', 'Liberation Mono', ui-monospace, monospace;
+  text-align: left;
   cursor: pointer;
-  transition: filter 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.passport-stamp:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.55), inset 0 0 26px rgba(122, 96, 48, 0.14);
+}
+
+.passport-stamp:hover .passport-stamp-ink {
+  opacity: 1;
+}
+
+.passport-stamp:focus-visible {
+  outline: 2px solid #69b3a2;
+  outline-offset: 3px;
 }
 
 /*
- * The worn-rubber grain lives on the frame layers only. Masking the stamp
- * itself punched the same stripes through its text and made it unreadable.
+ * Page security art: the national colours printed under the ink, the way the
+ * Fuji-and-sakura panel sits under a Japanese landing permission. The soft
+ * mask keeps the flag from reading as a pasted rectangle.
  */
-.passport-stamp::before {
+.passport-stamp-security {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 118px;
+  line-height: 1;
+  opacity: 0.16;
+  filter: saturate(0.72);
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(closest-side at 50% 52%, #000 26%, transparent 72%);
+  mask-image: radial-gradient(closest-side at 50% 52%, #000 26%, transparent 72%);
+}
+
+/*
+ * `multiply` lets the ink sink into the paper and the page art instead of
+ * sitting on top of it; the mask fades one corner the way a tired pad inks
+ * unevenly. It stays above 0.8 alpha so nothing turns unreadable.
+ */
+.passport-stamp-ink {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 9px 8px;
+  border: 2px solid currentColor;
+  transform: rotate(var(--stamp-rotate));
+  mix-blend-mode: multiply;
+  opacity: 0.93;
+  text-shadow: 0 0 0.55px currentColor;
+  -webkit-mask-image: radial-gradient(
+    120% 95% at var(--stamp-wear-x) var(--stamp-wear-y),
+    rgba(0, 0, 0, 0.82),
+    #000 58%
+  );
+  mask-image: radial-gradient(
+    120% 95% at var(--stamp-wear-x) var(--stamp-wear-y),
+    rgba(0, 0, 0, 0.82),
+    #000 58%
+  );
+}
+
+/*
+ * Inner hairline of the double frame every inspector's block carries. The
+ * grain mask lives here, never on the text layer: masking the type punched
+ * stripes through the letters and made them unreadable.
+ */
+.passport-stamp-ink::after {
   content: '';
   position: absolute;
-  inset: 4px;
-  border: 1px solid var(--passport-ink);
-  border-radius: 4px;
-  opacity: 0.6;
+  inset: 3px;
+  border: 1px solid currentColor;
+  opacity: 0.85;
   pointer-events: none;
-  -webkit-mask-image: repeating-linear-gradient(24deg, #000 0 6px, transparent 6px 9px);
-  mask-image: repeating-linear-gradient(24deg, #000 0 6px, transparent 6px 9px);
+  -webkit-mask-image: repeating-linear-gradient(28deg, #000 0 9px, rgba(0, 0, 0, 0.22) 9px 12px);
+  mask-image: repeating-linear-gradient(28deg, #000 0 9px, rgba(0, 0, 0, 0.22) 9px 12px);
 }
 
-.passport-stamp:hover,
-.passport-stamp:focus-visible {
-  filter: brightness(1.25);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--passport-ink) 45%, transparent);
-  outline: none;
-}
-
-.passport-stamp.is-home {
-  border-style: double;
-  border-width: 4px;
-}
-
-.passport-stamp-flag {
-  font-size: 26px;
-  line-height: 1;
+.passport-stamp-authority {
+  padding-bottom: 3px;
+  border-bottom: 1px solid currentColor;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
 }
 
 .passport-stamp-name {
-  font-family: var(--font-orbitron), sans-serif;
-  font-size: 13px;
+  margin-top: 5px;
+  font-size: 15px;
   font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  text-align: center;
+}
+
+.passport-stamp-title {
+  margin-bottom: 5px;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0.88;
+}
+
+/*
+ * One grid for every field so the typed values line up on a single tab stop,
+ * the way a pre-printed form forces them to. The rows are `display: contents`
+ * precisely so their label/value pairs join this grid.
+ */
+.passport-stamp-rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+}
+
+.passport-stamp-row {
+  display: contents;
+}
+
+/* Pre-printed form label; the colon belongs to the form, not the data. */
+.passport-stamp-label {
+  font-size: 8.5px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0.76;
+}
+
+.passport-stamp-label::after {
+  content: ':';
+}
+
+/* Typed-in value: heavier and larger, like the inspector's date wheel. */
+.passport-stamp-value {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.passport-stamp-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.passport-stamp-port {
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  font-size: 10px;
+  font-weight: 700;
   letter-spacing: 0.1em;
 }
 
-.passport-stamp-continent,
-.passport-stamp-count,
-.passport-stamp-distance {
-  font-size: 10px;
+.passport-stamp-region {
+  font-size: 8px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  opacity: 0.95;
+  opacity: 0.78;
 }
 
 .passport-stamp-codes {
   margin-top: 4px;
-  font-family: var(--font-orbitron), monospace;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  word-break: break-word;
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  opacity: 0.74;
 }
 
-.passport-stamp-dates {
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  opacity: 0.9;
-}
-
-.passport-stamp-badge {
-  position: absolute;
-  top: -9px;
-  right: 10px;
-  padding: 1px 6px;
-  border: 1px solid var(--passport-ink);
-  background: #0a0a0a;
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
+/* Residents get the heavier re-entry block instead of a UI badge. */
+.passport-stamp.is-home .passport-stamp-ink {
+  border-width: 3px;
 }
 
 /* Records */
@@ -811,12 +934,12 @@
   }
 
   .passport-stamp-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px 12px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
   }
 
   .passport-stamp {
-    padding: 12px 8px 10px;
+    padding: 12px 10px;
   }
 
   .passport-world-value {
